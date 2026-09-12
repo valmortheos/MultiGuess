@@ -1,4 +1,4 @@
-// [v1.0.3-OLD] Original CanvasManager preserved in comment
+// [v1.0.4-OLD] Previous CanvasManager preserved below in comment
 /*
 const CanvasManager = (function() {
     ...
@@ -72,10 +72,11 @@ const CanvasManager = (function() {
     }
 
     function setDrawerMode(enabled) {
-        console.log('[CanvasManager] Setting drawer mode:', enabled);
+        console.log('[CanvasManager] [drawer-mode] setting drawer mode:', enabled);
         isDrawerMode = enabled;
         if (canvas) {
             canvas.style.cursor = enabled ? 'crosshair' : 'default';
+            canvas.style.touchAction = enabled ? 'none' : 'auto';
         }
     }
 
@@ -95,11 +96,20 @@ const CanvasManager = (function() {
         isEraser = enabled;
     }
 
-    function getNormalizedCoords(clientX, clientY) {
+    function getCanvasCoords(e) {
+        if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+
+        const x = (clientX - rect.left) / rect.width;
+        const y = (clientY - rect.top) / rect.height;
+
+        console.log('[CanvasManager] debug getCanvasCoords:', { clientX, clientY, rectLeft: rect.left, rectTop: rect.top, rectW: rect.width, rectH: rect.height, normX: x, normY: y });
+
         return {
-            x: (clientX - rect.left) / rect.width,
-            y: (clientY - rect.top) / rect.height
+            x: Math.max(0, Math.min(1, x)),
+            y: Math.max(0, Math.min(1, y))
         };
     }
 
@@ -119,7 +129,7 @@ const CanvasManager = (function() {
 
         isDrawing = true;
 
-        const coords = getNormalizedCoords(e.clientX, e.clientY);
+        const coords = getCanvasCoords(e);
         const strokePoint = {
             x: coords.x,
             y: coords.y,
@@ -142,7 +152,7 @@ const CanvasManager = (function() {
         if (currentPointerId !== null && e.pointerId !== currentPointerId) return;
         e.preventDefault();
 
-        const coords = getNormalizedCoords(e.clientX, e.clientY);
+        const coords = getCanvasCoords(e);
         const strokePoint = {
             x: coords.x,
             y: coords.y,
@@ -175,7 +185,7 @@ const CanvasManager = (function() {
             currentPointerId = null;
         }
 
-        const coords = getNormalizedCoords(e.clientX, e.clientY);
+        const coords = getCanvasCoords(e);
         const strokePoint = {
             x: coords.x,
             y: coords.y,
@@ -297,6 +307,7 @@ const CanvasManager = (function() {
         addRemoteStroke: addRemoteStroke,
         rebuildStrokes: rebuildStrokes,
         clear: clear,
-        resizeCanvas: resizeCanvas
+        resizeCanvas: resizeCanvas,
+        getCanvasCoords: getCanvasCoords
     };
 })();

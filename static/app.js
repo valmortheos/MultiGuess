@@ -1,15 +1,21 @@
 // App Global State & Socket Initialization
-// [v1.0.3-OLD] const APP_VERSION = "1.0.3";
-const APP_VERSION = "1.0.4";
+// [v1.0.4-OLD] const APP_VERSION = "1.0.4";
+const APP_VERSION = "1.0.5";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
 window.currentSid = null;
 window.roomPlayerCount = 0;
 
+let hasPlayedTimeRemainingSound = false;
+
 document.addEventListener('DOMContentLoaded', async function() {
     // Initialize Client IndexedDB Storage
     await DB.init();
+
+    // Sound Preloader & Player Initialization
+    SoundPlayer.init();
+    await SoundLoader.loadSounds();
 
     // Canvas Init
     CanvasManager.init('game-canvas');
@@ -72,6 +78,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const settingTimer = document.getElementById('setting-timer');
     const settingRounds = document.getElementById('setting-rounds');
     const toggleHaptic = document.getElementById('toggle-haptic');
+    const toggleSound = document.getElementById('toggle-sound');
     const lobbyPlayerList = document.getElementById('lobby-player-list');
     const btnStartGame = document.getElementById('btn-start-game');
     const waitingHostMsg = document.getElementById('waiting-host-msg');
@@ -105,6 +112,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         const isHapticOn = (savedHaptic === 'true');
         toggleHaptic.checked = isHapticOn;
         setHapticEnabled(isHapticOn);
+    }
+
+    if (toggleSound) {
+        toggleSound.checked = SoundPlayer.getSoundEnabled();
+        toggleSound.addEventListener('change', function() {
+            SoundPlayer.setSoundEnabled(this.checked);
+        });
     }
 
     toggleHaptic.addEventListener('change', function() {
@@ -404,7 +418,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             leaderboardList.appendChild(div);
         });
 
-        console.log('[app.js] Room state updated:', data.state, 'Current Drawer:', data.current_drawer, 'My SID:', window.currentSid);
+        console.log('[drawer-mode]', mySid === data.current_drawer, data.current_drawer);
 
         if (data.state === 'LOBBY') {
             modalLobby.classList.remove('hidden');
@@ -436,7 +450,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             countdownOverlay.classList.add('hidden');
 
             const isDrawer = (window.currentSid === data.current_drawer);
-            console.log('[app.js] PLAYING state sync -> isDrawer:', isDrawer);
             CanvasManager.setDrawerMode(isDrawer);
 
             if (isDrawer) {
@@ -472,19 +485,23 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     window.AppSocket.on('round_started', function(data) {
-        console.log('[app.js] Event round_started received:', data);
         countdownOverlay.classList.add('hidden');
-        const isDrawer = (window.currentSid === data.drawer_sid);
-        console.log('[app.js] round_started -> isDrawer:', isDrawer);
+        const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : null);
+        const isDrawer = (mySid === data.drawer_sid);
+
+        console.log('[drawer-mode]', isDrawer, data.drawer_sid);
         CanvasManager.setDrawerMode(isDrawer);
 
         if (isDrawer) {
             if (drawingToolbar) drawingToolbar.classList.remove('hidden');
             turnStatusText.textContent = "Giliran kamu menggambar!";
+            SoundPlayer.play('YourTurn');
         } else {
             if (drawingToolbar) drawingToolbar.classList.add('hidden');
             turnStatusText.textContent = "Tebak gambarnya:";
         }
+
+        hasPlayedTimeRemainingSound = false;
     });
 
     window.AppSocket.on('choose_word_prompt', function(data) {
@@ -512,8 +529,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     window.AppSocket.on('timer_tick', function(data) {
         timerDisplay.textContent = `${data.time_remaining}s`;
-        if (data.time_remaining === 10) {
+        if (data.time_remaining <= 10 && !hasPlayedTimeRemainingSound) {
+            hasPlayedTimeRemainingSound = true;
             vibrate(15);
+            SoundPlayer.play('TimeRemaining');
         }
     });
 
@@ -538,8 +557,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else if (data.type === 'correct') {
             div.textContent = data.text;
             vibrate([30, 50, 30]);
+            SoundPlayer.play('CorrectAnswer');
+        } else if (data.type === 'censored') {
+            div.textContent = `${data.sender}: ${data.text}`;
+            SoundPlayer.play('Censored');
         } else {
             div.innerHTML = `<span class="chat-sender">${data.sender}:</span> ${data.text}`;
+            if (data.sender !== (inputPlayerName.value || '')) {
+                // Non-correct normal chat wrong guess
+                SoundPlayer.play('WrongAnswer');
+            }
         }
 
         chatList.appendChild(div);
@@ -566,12 +593,20 @@ document.addEventListener('DOMContentLoaded', async function() {
         vibrate([50, 100, 50]);
         revealWordDisplay.textContent = data.word.toUpperCase();
         roundSummaryList.innerHTML = '';
+
+        let anyCorrect = false;
         data.summary.forEach(item => {
+            if (item.points_gained > 0) anyCorrect = true;
             const div = document.createElement('div');
             div.className = 'summary-item';
             div.innerHTML = `<span>${item.name}</span> <span>+${item.points_gained} pt (Total: ${item.total_score})</span>`;
             roundSummaryList.appendChild(div);
         });
+
+        if (!anyCorrect) {
+            SoundPlayer.play('FailedRound');
+        }
+
         modalRoundEnded.classList.remove('hidden');
     });
 
@@ -599,6 +634,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             btnPlayAgain.classList.add('hidden');
         }
 
+        SoundPlayer.play('WinnerScore');
         modalPodium.classList.remove('hidden');
     });
 });

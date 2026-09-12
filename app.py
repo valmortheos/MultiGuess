@@ -1,5 +1,6 @@
+import os
 import time
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 from modules.config import APP_VERSION
@@ -8,6 +9,7 @@ from modules.words import pick_three_words
 from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
 from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
 from modules.game_state import RoomManager, normalize_room_code
+from modules.sound_manifest import get_sound_manifest, SOUND_DIR
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'multiguess-termux-secret-key-2025'
@@ -190,6 +192,15 @@ def delay_next_turn_task(room_code):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/Sound/<path:filename>')
+def serve_sound(filename):
+    return send_from_directory(SOUND_DIR, filename)
+
+@app.route('/api/sound-manifest')
+def sound_manifest():
+    manifest = get_sound_manifest()
+    return jsonify(manifest)
 
 # SocketIO Handlers
 @socketio.on('create_room')
@@ -382,14 +393,18 @@ def handle_send_message(data):
             secret = room['current_word'].lower().strip()
             if secret in text.lower():
                 display_text = "[pesan disensor]"
+                socketio.emit('chat_message', {
+                    'sender': player['name'],
+                    'text': display_text,
+                    'type': 'censored'
+                }, to=room_code)
             else:
                 display_text = text
-
-            socketio.emit('chat_message', {
-                'sender': player['name'],
-                'text': display_text,
-                'type': 'chat'
-            }, to=room_code)
+                socketio.emit('chat_message', {
+                    'sender': player['name'],
+                    'text': display_text,
+                    'type': 'chat'
+                }, to=room_code)
             return
 
         guess = text.lower().strip()

@@ -369,37 +369,12 @@ input[type="text"]:focus {
     font-size: 18px;
 }
 
-.canvas-container {
-    width: 100%;
-    max-width: 400px;
-    aspect-ratio: 4 / 3;
-    background: #ffffff;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    position: relative;
-    touch-action: none;
-    overflow: hidden;
-}
-
-#game-canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-    background: #ffffff;
-}
-
-/* [v1.0.3-OLD]
-.drawing-toolbar {
-    width: 100%;
-    max-width: 400px;
-    margin-top: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
+/* [v1.0.4-OLD] Canvas Toolbar and Container styling */
+/*
+.drawing-toolbar { ... }
 */
 
-/* Drawing Toolbar - Restored & Fixed v1.0.4 */
+/* Canvas & Drawing Toolbar - Enhanced v1.0.5 */
 .drawing-toolbar {
     width: 100%;
     max-width: 400px;
@@ -580,6 +555,13 @@ input[type="text"]:focus {
     border-color: #bbf7d0;
     color: #15803d;
     font-weight: 600;
+}
+
+.chat-msg.censored {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #ef4444;
+    font-style: italic;
 }
 
 .chat-msg.system {
@@ -877,4 +859,79 @@ input[type="text"]:focus {
     #landscape-overlay {
         display: flex !important;
     }
+}
+
+/* Sound Preloader Screen Styles - v1.0.5 */
+#sound-loader-screen {
+    position: fixed;
+    inset: 0;
+    background: #fafafa;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+}
+
+.loader-card {
+    width: 100%;
+    max-width: 360px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    text-align: center;
+}
+
+.loader-card h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 8px;
+}
+
+.loader-status-text {
+    font-size: 14px;
+    color: #4b5563;
+    margin-bottom: 16px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 10px;
+    background: #e5e7eb;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background-color: #3b82f6;
+    transition: width 0.15s linear;
+}
+
+.loader-metrics {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 16px;
+}
+
+.btn-skip-audio {
+    background: transparent;
+    border: 1px solid #d1d5db;
+    color: #6b7280;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.btn-skip-audio:active {
+    background: #f3f4f6;
 }
