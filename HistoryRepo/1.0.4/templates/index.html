@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#fafafa">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- [v1.0.3-OLD] <title>MultiGuess v1.0.3 - Game Draw & Guess</title> -->
+    <title>MultiGuess v1.0.4 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Socket.IO CDN -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+    <!-- Toast Notification Overlay -->
+    <div id="app-toast" class="toast-popup hidden">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Countdown Overlay (3-2-1) -->
+    <div id="countdown-overlay" class="overlay hidden">
+        <div class="countdown-content">
+            <span id="countdown-number">3</span>
+            <p id="countdown-text">Bersiap-siap!</p>
+        </div>
+    </div>
+
+    <!-- Landscape Orientation Warning Overlay -->
+    <div id="landscape-overlay" class="overlay hidden">
+        <div class="landscape-content">
+            <div class="rotate-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <path d="M12 18h.01"></path>
+                </svg>
+            </div>
+            <h2>Putar Perangkat Anda</h2>
+            <p>Aplikasi MultiGuess dirancang untuk digunakan dalam mode Portrait.</p>
+        </div>
+    </div>
+
+    <!-- Screen 1: Home / Welcome View -->
+    <div id="screen-home" class="screen active">
+        <div class="home-card">
+            <div class="brand">
+                <div class="brand-svg-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                </div>
+                <h1>MultiGuess</h1>
+                <p class="subtitle">Game Tebak Gambar Multiplayer</p>
+            </div>
+
+            <div class="form-group">
+                <label for="player-name">Nama Pemain</label>
+                <input type="text" id="player-name" placeholder="Masukkan nama kamu" maxlength="15" autocomplete="off">
+            </div>
+
+            <div class="action-buttons">
+                <button id="btn-create-room" class="btn btn-primary">Buat Room Baru</button>
+                <div class="divider"><span>atau</span></div>
+                <div class="join-group">
+                    <input type="text" id="room-code-input" placeholder="KODE ROOM (4 Huruf)" maxlength="6" autocomplete="off" style="text-transform: uppercase;">
+                    <button id="btn-join-room" class="btn btn-secondary">Join Room</button>
+                </div>
+            </div>
+
+            <!-- [v1.0.3-OLD] <div class="footer-version">MultiGuess v1.0.3</div> -->
+            <div class="footer-version">MultiGuess v1.0.4</div>
+        </div>
+    </div>
+
+    <!-- Screen 2: Game Room View -->
+    <div id="screen-game" class="screen hidden">
+
+        <!-- Fixed Top Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <button id="btn-back-lobby" class="btn btn-icon-secondary" title="Kembali">← Kembali</button>
+                <span class="room-badge">Room: <strong id="display-room-code">----</strong></span>
+                <span id="round-badge" class="round-badge">Ronde 1/3</span>
+            </div>
+            <div class="header-center">
+                <div id="timer-display" class="timer-box">75s</div>
+            </div>
+            <div class="header-right">
+                <button id="btn-leave" class="btn btn-icon-danger" title="Keluar">✕</button>
+            </div>
+        </header>
+
+        <!-- Main Viewport Layout -->
+        <main class="game-container">
+
+            <!-- Canvas & Game Info Area -->
+            <section class="game-top-section">
+                <!-- Status Bar / Secret Word Hint -->
+                <div class="word-status-bar">
+                    <span id="turn-status-text" class="turn-status">Menunggu pemain...</span>
+                    <span id="word-mask-display" class="word-mask"></span>
+                </div>
+
+                <!-- Canvas Container -->
+                <div id="canvas-container" class="canvas-container">
+                    <canvas id="game-canvas"></canvas>
+                </div>
+
+                <!-- [v1.0.3-OLD] Original toolbar structure preserved below in comment if needed -->
+                <!--
+                <div id="drawing-toolbar" class="drawing-toolbar hidden"> ... </div>
+                -->
+                <!-- Drawing Toolbar (Only visible to active drawer) - Enhanced v1.0.4 -->
+                <div id="drawing-toolbar" class="drawing-toolbar hidden" aria-label="Toolbar Gambar">
+                    <div class="color-palette" id="color-palette-container">
+                        <button class="color-btn active" data-color="#111827" style="background-color: #111827;" aria-label="Hitam"></button>
+                        <button class="color-btn" data-color="#ef4444" style="background-color: #ef4444;" aria-label="Merah"></button>
+                        <button class="color-btn" data-color="#3b82f6" style="background-color: #3b82f6;" aria-label="Biru"></button>
+                        <button class="color-btn" data-color="#22c55e" style="background-color: #22c55e;" aria-label="Hijau"></button>
+                        <button class="color-btn" data-color="#eab308" style="background-color: #eab308;" aria-label="Kuning"></button>
+                        <button class="color-btn" data-color="#a855f7" style="background-color: #a855f7;" aria-label="Ungu"></button>
+                    </div>
+                    <div class="tool-controls">
+                        <select id="brush-size" class="select-tool" aria-label="Ukuran Kuas">
+                            <option value="3">Halus</option>
+                            <option value="6" selected>Sedang</option>
+                            <option value="12">Tebal</option>
+                            <option value="24">Sangat Tebal</option>
+                        </select>
+                        <button id="btn-eraser" type="button" class="btn-tool">Hapus</button>
+                        <button id="btn-undo" type="button" class="btn-tool">Undo</button>
+                        <button id="btn-clear" type="button" class="btn-tool btn-tool-danger">Hapus Semua</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Leaderboard & Chat Section -->
+            <section class="game-bottom-section">
+
+                <!-- Collapsible Leaderboard Bar -->
+                <div class="leaderboard-panel">
+                    <div id="leaderboard-toggle" class="leaderboard-header">
+                        <span>Papan Skor (<span id="player-count">0</span>)</span>
+                        <span id="lb-toggle-icon">▲</span>
+                    </div>
+                    <div id="leaderboard-list" class="leaderboard-list">
+                        <!-- Dynamic Leaderboard Items -->
+                    </div>
+                </div>
+
+                <!-- Chat & Guess Area -->
+                <div class="chat-container">
+                    <div id="chat-list" class="chat-list">
+                        <!-- Chat Messages -->
+                    </div>
+
+                    <!-- Guess Toast Notification -->
+                    <div id="toast-hampir-benar" class="toast toast-warning hidden">Hampir benar! (Beda 1-2 huruf)</div>
+
+                    <!-- Input Box -->
+                    <form id="chat-form" class="chat-form">
+                        <input type="text" id="chat-input" placeholder="Ketik tebakan atau pesan..." autocomplete="off" maxlength="100">
+                        <button type="submit" id="btn-send" class="btn btn-primary">Kirim</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Bottom Sheet Modal 1: Lobby Modal -->
+    <div id="modal-lobby" class="modal active hidden">
+        <div class="modal-bottom-sheet">
+            <h2>Lobby Game</h2>
+            <p class="modal-subtitle">Bagikan kode room ke teman-temanmu:</p>
+            <div class="room-code-display">
+                <span id="lobby-room-code">----</span>
+            </div>
+
+            <!-- Host Game Settings -->
+            <div id="host-settings" class="settings-group hidden">
+                <h3>Pengaturan Game (Host)</h3>
+                <div class="setting-item">
+                    <label>Durasi Timer Ronde:</label>
+                    <select id="setting-timer" class="select-input">
+                        <option value="60">60 Detik</option>
+                        <option value="75" selected>75 Detik</option>
+                        <option value="90">90 Detik</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Jumlah Ronde:</label>
+                    <select id="setting-rounds" class="select-input">
+                        <option value="3" selected>3 Ronde</option>
+                        <option value="5">5 Ronde</option>
+                        <option value="7">7 Ronde</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Haptic Feedback (Getar):</label>
+                    <input type="checkbox" id="toggle-haptic" checked style="width: 18px; height: 18px;">
+                </div>
+            </div>
+
+            <div class="lobby-players">
+                <h3>Daftar Pemain dalam Room:</h3>
+                <ul id="lobby-player-list"></ul>
+            </div>
+
+            <div class="modal-actions">
+                <button id="btn-start-game" class="btn btn-success hidden">Mulai Permainan</button>
+                <div id="waiting-host-msg" class="waiting-text hidden">Menunggu host memulai permainan...</div>
+            </div>
+
+            <!-- [v1.0.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.3</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.4</div>
+        </div>
+    </div>
+
+    <!-- Center Modal: Confirm Action Modal -->
+    <div id="modal-confirm" class="modal hidden">
+        <div class="modal-center-card">
+            <h2 id="confirm-title">Konfirmasi</h2>
+            <p id="confirm-message" class="modal-subtitle">Apakah Anda yakin?</p>
+            <div class="podium-actions">
+                <button id="btn-confirm-yes" class="btn btn-primary" style="flex: 1;">Ya</button>
+                <button id="btn-confirm-no" class="btn btn-secondary" style="flex: 1;">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet Modal 2: Word Selection Modal (Drawer Only) -->
+    <div id="modal-word-select" class="modal hidden">
+        <div class="modal-bottom-sheet">
+            <h2>Giliran Kamu Menggambar!</h2>
+            <p class="modal-subtitle">Pilih 1 kata untuk digambar:</p>
+            <div id="word-cards-container" class="word-cards-container">
+                <!-- 3 Word Cards -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet Modal 3: Round Ended Summary Modal -->
+    <div id="modal-round-ended" class="modal hidden">
+        <div class="modal-bottom-sheet">
+            <h2>Ronde Selesai!</h2>
+            <p>Jawaban yang benar adalah:</p>
+            <div id="reveal-word-display" class="reveal-word">...</div>
+            <h3>Poin Ronde Ini:</h3>
+            <div id="round-summary-list" class="summary-list"></div>
+            <p class="small-text">Ronde berikutnya segera dimulai...</p>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet Modal 4: Final Game Over Podium Modal -->
+    <div id="modal-podium" class="modal hidden">
+        <div class="modal-bottom-sheet">
+            <h2>Hasil Permainan</h2>
+            <div id="podium-container" class="podium-container">
+                <!-- Winner Cards -->
+            </div>
+            <div class="modal-actions">
+                <button id="btn-play-again" class="btn btn-primary hidden">Main Lagi</button>
+                <button id="btn-exit-podium" class="btn btn-secondary">Keluar ke Home</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/storage.js"></script>
+    <script src="/static/canvas.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
