@@ -1,6 +1,8 @@
-# MultiGuess v1.0.3 - Real-time Multiplayer Draw & Guess Web App
+<!-- [v1.0.3-OLD] # MultiGuess v1.0.3 - Real-time Multiplayer Draw & Guess Web App -->
+# MultiGuess v1.0.4 - Real-time Multiplayer Draw & Guess Web App
 
-**Current version: 1.0.3**
+<!-- [v1.0.3-OLD] **Current version: 1.0.3** -->
+**Current version: 1.0.4**
 
 MultiGuess adalah aplikasi web multiplayer real-time (game Tebak Gambar) yang dirancang khusus untuk berjalan dengan ringan di server lokal (Flask + Flask-SocketIO) di **Termux Android**. Pemain cukup menghubungkan HP mereka ke jaringan Wi-Fi LAN yang sama dan membuka URL aplikasi dari browser HP masing-masing.
 
@@ -8,7 +10,8 @@ Aplikasi ini dikembangkan dengan pendekatan **Mobile-First** dan memberikan **Na
 
 ---
 
-## 🚀 Fitur & Peningkatan Utama (v1.0.3)
+<!-- [v1.0.3-OLD] ## 🚀 Fitur & Peningkatan Utama (v1.0.3) -->
+## 🚀 Fitur & Peningkatan Utama (v1.0.4)
 
 1. **Native App Feel & Haptic Feedback**:
    - Layout fixed full-viewport (`100dvh`, `overflow: hidden`, safe-area inset)
@@ -74,7 +77,7 @@ Setelah server berjalan, console akan menampilkan banner informasi port, URL LAN
 
 ```
 ============================================
-  MultiGuess server v1.0.3
+  MultiGuess server v1.0.4
   Local:   http://127.0.0.1:5231
   Network: http://192.168.1.42:5231
   Share this URL with players on the same WiFi
