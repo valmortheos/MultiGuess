@@ -1,0 +1,35 @@
+.
+├── README.md
+├── app.py
+├── cache
+│   ├── persistent
+│   │   └── rooms_index.json
+│   └── temporal
+├── list.txt
+├── modules
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── __init__.cpython-314.pyc
+│   │   ├── cache.cpython-314.pyc
+│   │   ├── config.cpython-314.pyc
+│   │   ├── game_state.cpython-314.pyc
+│   │   ├── network.cpython-314.pyc
+│   │   ├── scoring.cpython-314.pyc
+│   │   └── words.cpython-314.pyc
+│   ├── cache.py
+│   ├── config.py
+│   ├── game_state.py
+│   ├── network.py
+│   ├── scoring.py
+│   └── words.py
+├── requirements.txt
+├── rooms_cache.json
+├── static
+│   ├── app.js
+│   ├── canvas.js
+│   ├── storage.js
+│   └── style.css
+└── templates
+    └── index.html
+
+8 directories, 25 files
