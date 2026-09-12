@@ -1,11 +1,15 @@
 // App Global State & Socket Initialization
+const APP_VERSION = "1.0.3";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
 window.currentSid = null;
 window.roomPlayerCount = 0;
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Initialize Client IndexedDB Storage
+    await DB.init();
+
     // Canvas Init
     CanvasManager.init('game-canvas');
 
@@ -44,6 +48,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatInput = document.getElementById('chat-input');
     const toastHampirBenar = document.getElementById('toast-hampir-benar');
 
+    // Countdown Overlay
+    const countdownOverlay = document.getElementById('countdown-overlay');
+    const countdownNumber = document.getElementById('countdown-number');
+
     // Toast Popup
     const appToast = document.getElementById('app-toast');
     const toastMessage = document.getElementById('toast-message');
@@ -62,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const hostSettings = document.getElementById('host-settings');
     const settingTimer = document.getElementById('setting-timer');
     const settingRounds = document.getElementById('setting-rounds');
+    const toggleHaptic = document.getElementById('toggle-haptic');
     const lobbyPlayerList = document.getElementById('lobby-player-list');
     const btnStartGame = document.getElementById('btn-start-game');
     const waitingHostMsg = document.getElementById('waiting-host-msg');
@@ -85,22 +94,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnPlayAgain = document.getElementById('btn-play-again');
     const btnExitPodium = document.getElementById('btn-exit-podium');
 
-    // Save Name in LocalStorage
-    if (localStorage.getItem('multiguess_player_name')) {
-        inputPlayerName.value = localStorage.getItem('multiguess_player_name');
+    // Restore Name & Settings from DB
+    const savedName = await DB.get('settings', 'player_name');
+    if (savedName) {
+        inputPlayerName.value = savedName;
+    }
+    const savedHaptic = await DB.get('settings', 'haptic');
+    if (savedHaptic !== null) {
+        const isHapticOn = (savedHaptic === 'true');
+        toggleHaptic.checked = isHapticOn;
+        setHapticEnabled(isHapticOn);
     }
 
-    function savePlayerName() {
+    toggleHaptic.addEventListener('change', function() {
+        setHapticEnabled(this.checked);
+    });
+
+    async function savePlayerName() {
         const name = inputPlayerName.value.trim();
         if (name) {
-            localStorage.setItem('multiguess_player_name', name);
+            await DB.set('settings', 'player_name', name);
         }
         return name;
     }
 
     // Event Handlers - Room Creation & Joining
-    btnCreateRoom.addEventListener('click', function() {
-        const name = savePlayerName();
+    btnCreateRoom.addEventListener('click', async function() {
+        vibrate(10);
+        const name = await savePlayerName();
         if (!name) {
             showToast('Masukkan nama kamu terlebih dahulu!');
             return;
@@ -108,8 +129,9 @@ document.addEventListener('DOMContentLoaded', function() {
         window.AppSocket.emit('create_room', { player_name: name });
     });
 
-    btnJoinRoom.addEventListener('click', function() {
-        const name = savePlayerName();
+    btnJoinRoom.addEventListener('click', async function() {
+        vibrate(10);
+        const name = await savePlayerName();
         const rawCode = inputRoomCode.value.trim();
         if (!name) {
             showToast('Masukkan nama kamu terlebih dahulu!');
@@ -124,10 +146,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Back / Cancel / Leave Header Logic
     btnBackLobby.addEventListener('click', function() {
+        vibrate(10);
         handleLeaveOrBackAction();
     });
 
     btnLeave.addEventListener('click', function() {
+        vibrate(10);
         handleLeaveOrBackAction();
     });
 
@@ -159,6 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     btnConfirmYes.addEventListener('click', function() {
+        vibrate(10);
         modalConfirm.classList.add('hidden');
         if (typeof onConfirmAction === 'function') {
             onConfirmAction();
@@ -166,6 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btnConfirmNo.addEventListener('click', function() {
+        vibrate(10);
         modalConfirm.classList.add('hidden');
         onConfirmAction = null;
     });
@@ -179,6 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modalWordSelect.classList.add('hidden');
         modalRoundEnded.classList.add('hidden');
         modalPodium.classList.add('hidden');
+        countdownOverlay.classList.add('hidden');
         screenHome.classList.remove('hidden');
         chatList.innerHTML = '';
         CanvasManager.clear();
@@ -199,6 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     btnStartGame.addEventListener('click', function() {
+        vibrate(10);
         if (window.isHost && window.currentRoomCode) {
             window.AppSocket.emit('start_game', { room_code: window.currentRoomCode });
         }
@@ -207,6 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Toolbar Event Listeners
     colorBtns.forEach(btn => {
         btn.addEventListener('click', function() {
+            vibrate(10);
             colorBtns.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             CanvasManager.setColor(this.dataset.color);
@@ -218,19 +247,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btnEraser.addEventListener('click', function() {
+        vibrate(10);
         CanvasManager.setEraser(true);
     });
 
     btnUndo.addEventListener('click', function() {
+        vibrate(10);
         window.AppSocket.emit('undo_stroke', { room_code: window.currentRoomCode });
     });
 
     btnClear.addEventListener('click', function() {
+        vibrate(10);
         window.AppSocket.emit('clear_canvas', { room_code: window.currentRoomCode });
     });
 
     // Leaderboard Toggle
     leaderboardToggle.addEventListener('click', function() {
+        vibrate(10);
         if (leaderboardList.style.display === 'none') {
             leaderboardList.style.display = 'flex';
             lbToggleIcon.textContent = '▲';
@@ -254,6 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btnPlayAgain.addEventListener('click', function() {
+        vibrate(10);
         if (window.isHost && window.currentRoomCode) {
             window.AppSocket.emit('play_again', { room_code: window.currentRoomCode });
             modalPodium.classList.add('hidden');
@@ -261,6 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btnExitPodium.addEventListener('click', function() {
+        vibrate(10);
         resetToHome();
     });
 
@@ -315,6 +350,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         modalLobby.classList.remove('hidden');
+
+        // Signal Canvas Ready to server
+        window.AppSocket.emit('canvas_ready', { room_code: window.currentRoomCode });
     });
 
     window.AppSocket.on('room_updated', function(data) {
@@ -325,14 +363,12 @@ document.addEventListener('DOMContentLoaded', function() {
         displayRoundBadge.textContent = `Ronde ${data.current_round}/${data.total_rounds}`;
         playerCount.textContent = data.players.length;
 
-        // Header Back Button Text update (Kembali vs Leave)
         if (window.isHost && window.roomPlayerCount <= 1) {
             btnBackLobby.textContent = "← Kembali";
         } else {
             btnBackLobby.textContent = "← Keluar";
         }
 
-        // Update Host Controls state
         if (window.isHost && data.state === 'LOBBY') {
             hostSettings.classList.remove('hidden');
             btnStartGame.classList.remove('hidden');
@@ -343,7 +379,6 @@ document.addEventListener('DOMContentLoaded', function() {
             waitingHostMsg.classList.remove('hidden');
         }
 
-        // Update Lobby Player List
         lobbyPlayerList.innerHTML = '';
         data.players.forEach(p => {
             const li = document.createElement('li');
@@ -351,7 +386,6 @@ document.addEventListener('DOMContentLoaded', function() {
             lobbyPlayerList.appendChild(li);
         });
 
-        // Update Dynamic Leaderboard Bar
         leaderboardList.innerHTML = '';
         data.players.forEach(p => {
             const div = document.createElement('div');
@@ -368,12 +402,12 @@ document.addEventListener('DOMContentLoaded', function() {
             leaderboardList.appendChild(div);
         });
 
-        // State Transitions
         if (data.state === 'LOBBY') {
             modalLobby.classList.remove('hidden');
             modalWordSelect.classList.add('hidden');
             modalRoundEnded.classList.add('hidden');
             modalPodium.classList.add('hidden');
+            countdownOverlay.classList.add('hidden');
             turnStatusText.textContent = "Menunggu host memulai...";
             wordMaskDisplay.textContent = "";
             drawingToolbar.classList.add('hidden');
@@ -382,6 +416,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modalLobby.classList.add('hidden');
             modalRoundEnded.classList.add('hidden');
             modalPodium.classList.add('hidden');
+            countdownOverlay.classList.add('hidden');
             wordMaskDisplay.textContent = "";
 
             if (window.currentSid === data.current_drawer) {
@@ -389,23 +424,42 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 turnStatusText.textContent = `${data.current_drawer_name} sedang memilih kata...`;
             }
-        } else if (data.state === 'PLAYING') {
-            modalLobby.classList.add('hidden');
-            modalWordSelect.classList.add('hidden');
-            modalRoundEnded.classList.add('hidden');
-            modalPodium.classList.add('hidden');
+        }
+    });
 
-            const isDrawer = (window.currentSid === data.current_drawer);
-            CanvasManager.setDrawerMode(isDrawer);
+    window.AppSocket.on('countdown_start', function(data) {
+        modalLobby.classList.add('hidden');
+        modalWordSelect.classList.add('hidden');
+        modalRoundEnded.classList.add('hidden');
 
-            if (isDrawer) {
-                drawingToolbar.classList.remove('hidden');
-                turnStatusText.textContent = "Giliran kamu menggambar!";
+        let count = data.duration || 3;
+        countdownNumber.textContent = count;
+        countdownOverlay.classList.remove('hidden');
+        vibrate(50);
+
+        const interval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                countdownNumber.textContent = count;
+                vibrate(50);
             } else {
-                drawingToolbar.classList.add('hidden');
-                turnStatusText.textContent = `${data.current_drawer_name} sedang menggambar:`;
-                wordMaskDisplay.textContent = data.masked_word;
+                clearInterval(interval);
+                countdownOverlay.classList.add('hidden');
             }
+        }, 1000);
+    });
+
+    window.AppSocket.on('round_started', function(data) {
+        countdownOverlay.classList.add('hidden');
+        const isDrawer = (window.currentSid === data.drawer_sid);
+        CanvasManager.setDrawerMode(isDrawer);
+
+        if (isDrawer) {
+            drawingToolbar.classList.remove('hidden');
+            turnStatusText.textContent = "Giliran kamu menggambar!";
+        } else {
+            drawingToolbar.classList.add('hidden');
+            turnStatusText.textContent = "Tebak gambarnya:";
         }
     });
 
@@ -416,6 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.className = 'word-card';
             btn.textContent = word;
             btn.addEventListener('click', function() {
+                vibrate(10);
                 window.AppSocket.emit('select_word', {
                     room_code: window.currentRoomCode,
                     word: word
@@ -433,6 +488,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.AppSocket.on('timer_tick', function(data) {
         timerDisplay.textContent = `${data.time_remaining}s`;
+        if (data.time_remaining === 10) {
+            vibrate(15);
+        }
     });
 
     window.AppSocket.on('draw_stroke', function(stroke) {
@@ -455,6 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
             div.textContent = data.text;
         } else if (data.type === 'correct') {
             div.textContent = data.text;
+            vibrate([30, 50, 30]);
         } else {
             div.innerHTML = `<span class="chat-sender">${data.sender}:</span> ${data.text}`;
         }
@@ -472,6 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.AppSocket.on('hampir_benar', function() {
+        vibrate(20);
         toastHampirBenar.classList.remove('hidden');
         setTimeout(() => {
             toastHampirBenar.classList.add('hidden');
@@ -479,6 +539,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.AppSocket.on('turn_ended', function(data) {
+        vibrate([50, 100, 50]);
         revealWordDisplay.textContent = data.word.toUpperCase();
         roundSummaryList.innerHTML = '';
         data.summary.forEach(item => {
@@ -491,6 +552,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.AppSocket.on('game_over', function(data) {
+        vibrate([50, 100, 50, 100, 50]);
         modalRoundEnded.classList.add('hidden');
         podiumContainer.innerHTML = '';
 

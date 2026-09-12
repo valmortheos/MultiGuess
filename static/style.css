@@ -18,6 +18,8 @@ html, body {
     -webkit-user-select: none;
     user-select: none;
     touch-action: manipulation;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Allow text selection strictly inside text inputs */
@@ -42,7 +44,7 @@ input, textarea, select {
 /* Toast Popup */
 .toast-popup {
     position: fixed;
-    top: 16px;
+    top: calc(16px + env(safe-area-inset-top));
     left: 50%;
     transform: translateX(-50%);
     background: #ef4444;
@@ -52,17 +54,54 @@ input, textarea, select {
     font-size: 13px;
     font-weight: 600;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 200;
+    z-index: 300;
     text-align: center;
     max-width: 90%;
+}
+
+/* Overlay & Countdown */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 250;
+    color: #ffffff;
+}
+
+.countdown-content {
+    text-align: center;
+}
+
+#countdown-number {
+    font-size: 96px;
+    font-weight: 900;
+    color: #3b82f6;
+    display: block;
+    animation: scalePulse 0.8s ease-in-out infinite;
+}
+
+#countdown-text {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 8px;
+    color: #f3f4f6;
+}
+
+@keyframes scalePulse {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 /* Screen 1: Home View */
 #screen-home {
     justify-content: center;
     align-items: center;
-    padding: 20px;
-    background: linear-gradient(180deg, #f3f4f6 0%, #fafafa 100%);
+    padding: 24px;
+    background: #fafafa;
 }
 
 .home-card {
@@ -72,7 +111,7 @@ input, textarea, select {
     border: 1px solid #e5e7eb;
     border-radius: 12px;
     padding: 24px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
 }
 
 .brand {
@@ -80,14 +119,19 @@ input, textarea, select {
     margin-bottom: 24px;
 }
 
-.brand-icon {
-    font-size: 40px;
-    display: block;
-    margin-bottom: 8px;
+.brand-svg-icon {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 56px;
+    height: 56px;
+    background: #eff6ff;
+    border-radius: 16px;
+    margin-bottom: 12px;
 }
 
 .brand h1 {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 700;
     color: #111827;
 }
@@ -118,11 +162,13 @@ input[type="text"] {
     padding: 0 12px;
     font-size: 15px;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: #ffffff;
 }
 
 input[type="text"]:focus {
     border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .action-buttons {
@@ -168,7 +214,7 @@ input[type="text"]:focus {
     font-size: 13px;
 }
 
-/* Buttons */
+/* Native-feel Buttons */
 .btn {
     height: 44px;
     border: none;
@@ -179,16 +225,22 @@ input[type="text"]:focus {
     display: inline-flex;
     justify-content: center;
     align-items: center;
-    transition: background-color 0.2s, opacity 0.2s;
+    position: relative;
+    overflow: hidden;
+    transition: transform 100ms ease, background-color 100ms ease;
 }
 
 .btn:active {
-    opacity: 0.85;
+    transform: scale(0.97);
 }
 
 .btn-primary {
     background-color: #3b82f6;
     color: #ffffff;
+}
+
+.btn-primary:active {
+    background-color: #2563eb;
 }
 
 .btn-secondary {
@@ -197,10 +249,18 @@ input[type="text"]:focus {
     border: 1px solid #d1d5db;
 }
 
+.btn-secondary:active {
+    background-color: #e5e7eb;
+}
+
 .btn-success {
     background-color: #22c55e;
     color: #ffffff;
     width: 100%;
+}
+
+.btn-success:active {
+    background-color: #16a34a;
 }
 
 .btn-icon-secondary {
@@ -209,7 +269,7 @@ input[type="text"]:focus {
     font-size: 12px;
     font-weight: 600;
     color: #374151;
-    padding: 4px 10px;
+    padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
 }
@@ -231,9 +291,10 @@ input[type="text"]:focus {
 }
 
 .app-header {
-    height: 50px;
+    height: 52px;
     background: #ffffff;
     border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -520,21 +581,34 @@ input[type="text"]:focus {
     flex: 1;
 }
 
-/* Modals */
+/* Modals - Bottom Sheet on Mobile, Center Card for Confirmation */
 .modal {
     position: fixed;
     inset: 0;
     background: rgba(17, 24, 39, 0.6);
     display: flex;
     justify-content: center;
-    align-items: center;
-    padding: 20px;
-    z-index: 100;
+    align-items: flex-end;
+    padding: 0;
+    z-index: 200;
 }
 
-.modal-content {
+.modal-bottom-sheet {
     width: 100%;
+    max-width: 480px;
+    background: #ffffff;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+    text-align: center;
+    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-center-card {
+    width: calc(100% - 40px);
     max-width: 360px;
+    margin: auto;
     background: #ffffff;
     border-radius: 12px;
     padding: 20px;
@@ -542,7 +616,12 @@ input[type="text"]:focus {
     text-align: center;
 }
 
-.modal-content h2 {
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.modal-bottom-sheet h2, .modal-center-card h2 {
     font-size: 20px;
     margin-bottom: 4px;
 }
@@ -649,11 +728,12 @@ input[type="text"]:focus {
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 100ms ease, transform 100ms ease;
 }
 
 .word-card:active {
     background: #eff6ff;
+    transform: scale(0.98);
 }
 
 /* Round Summary */
@@ -723,6 +803,13 @@ input[type="text"]:focus {
 .podium-actions {
     display: flex;
     gap: 8px;
+}
+
+.footer-version {
+    font-size: 12px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 16px;
 }
 
 /* Landscape Overlay */
