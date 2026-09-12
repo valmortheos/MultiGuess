@@ -1,3 +1,4 @@
 {
+  "_comment": "Legacy cache file. Active server persistent cache is stored under cache/persistent/rooms_index.json",
   "rooms": {}
 }

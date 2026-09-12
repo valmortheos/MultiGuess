@@ -16,13 +16,16 @@ from modules.dev_bot import (
 )
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'multiguess-termux-secret-key-2025'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'multiguess-termux-secret-key-2025')
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 
 room_mgr = RoomManager()
 
 # User Reaction Cooldown Tracker: sid -> last_reaction_timestamp
 reaction_cooldowns = {}
+
+# User Chat Message Rate Limit Tracker: sid -> list of timestamps
+chat_timestamps = {}
 
 def broadcast_room_update(room_code):
     data = room_mgr.get_room_data(room_code)
@@ -103,6 +106,7 @@ def start_next_turn(room_code):
     socketio.start_background_task(target=word_select_timer_task, room_code=room_code, drawer_sid=drawer_sid)
 
 def word_select_timer_task(room_code, drawer_sid):
+    # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
     time.sleep(15)
     room = room_mgr.get_room(room_code)
     if room and room['state'] == 'SELECTING_WORD' and room['current_drawer'] == drawer_sid:
@@ -129,6 +133,7 @@ def on_word_chosen(room_code, drawer_sid, chosen_word):
     socketio.start_background_task(target=countdown_timer_task, room_code=room_code)
 
 def countdown_timer_task(room_code):
+    # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
     time.sleep(3)
     room = room_mgr.get_room(room_code)
     if not room or room['state'] != 'COUNTDOWN':
@@ -157,6 +162,7 @@ def turn_timer_task(room_code):
         return
 
     while room and room.get('timer_running') and room['state'] == 'PLAYING':
+        # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
         time.sleep(1)
         room = room_mgr.get_room(room_code)
         if not room or not room.get('timer_running') or room['state'] != 'PLAYING':
@@ -221,6 +227,7 @@ def end_turn(room_code):
     socketio.start_background_task(target=delay_next_turn_task, room_code=room_code)
 
 def delay_next_turn_task(room_code):
+    # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
     time.sleep(5)
     room = room_mgr.get_room(room_code)
     if room and room['state'] == 'ROUND_ENDED':
@@ -248,7 +255,8 @@ def check_dev_mode_and_host(room_code):
     if not room:
         return False, jsonify({'error': f'Room {room_code} not found'}), 404
 
-    req_sid = request.headers.get('X-Socket-ID') or request.args.get('sid') or (request.json.get('sid') if request.is_json and request.json else None)
+    req_json = request.get_json(silent=True) or {}
+    req_sid = request.headers.get('X-Socket-ID') or request.args.get('sid') or req_json.get('sid')
     if not req_sid or room.get('host_sid') != req_sid:
         return False, jsonify({'error': 'Only host can perform dev actions'}), 403
     return True, room, None
@@ -538,6 +546,16 @@ def handle_send_message(data):
     if not player:
         return
 
+    # Chat rate limit check: max 5 messages per 5 seconds per sid
+    now = time.time()
+    user_msgs = chat_timestamps.get(sid, [])
+    user_msgs = [ts for ts in user_msgs if now - ts < 5.0]
+    if len(user_msgs) >= 5:
+        emit('error_message', {'message': 'Pesan terlalu cepat. Tunggu sebentar.'}, to=sid)
+        return
+    user_msgs.append(now)
+    chat_timestamps[sid] = user_msgs
+
     # Profanity moderation check
     has_profanity, matched = contains_profanity(text)
     if has_profanity:
@@ -728,6 +746,8 @@ def handle_disconnect():
     sid = request.sid
     if sid in reaction_cooldowns:
         del reaction_cooldowns[sid]
+    if sid in chat_timestamps:
+        del chat_timestamps[sid]
 
     for room_code, room in list(room_mgr.rooms.items()):
         if sid in room['players']:
