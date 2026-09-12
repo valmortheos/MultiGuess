@@ -1,5 +1,6 @@
 // App Global State & Socket Initialization
-const APP_VERSION = "1.0.3";
+// [v1.0.3-OLD] const APP_VERSION = "1.0.3";
+const APP_VERSION = "1.0.4";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -357,7 +358,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     window.AppSocket.on('room_updated', function(data) {
         window.currentRoomCode = data.room_code;
-        window.isHost = (window.currentSid === data.host_sid);
+        const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : null);
+        window.isHost = (mySid === data.host_sid);
         window.roomPlayerCount = data.players.length;
 
         displayRoundBadge.textContent = `Ronde ${data.current_round}/${data.total_rounds}`;
@@ -402,6 +404,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             leaderboardList.appendChild(div);
         });
 
+        console.log('[app.js] Room state updated:', data.state, 'Current Drawer:', data.current_drawer, 'My SID:', window.currentSid);
+
         if (data.state === 'LOBBY') {
             modalLobby.classList.remove('hidden');
             modalWordSelect.classList.add('hidden');
@@ -410,7 +414,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             countdownOverlay.classList.add('hidden');
             turnStatusText.textContent = "Menunggu host memulai...";
             wordMaskDisplay.textContent = "";
-            drawingToolbar.classList.add('hidden');
+            if (drawingToolbar) drawingToolbar.classList.add('hidden');
             CanvasManager.setDrawerMode(false);
         } else if (data.state === 'SELECTING_WORD') {
             modalLobby.classList.add('hidden');
@@ -423,6 +427,24 @@ document.addEventListener('DOMContentLoaded', async function() {
                 turnStatusText.textContent = "Kamu sedang memilih kata...";
             } else {
                 turnStatusText.textContent = `${data.current_drawer_name} sedang memilih kata...`;
+            }
+        } else if (data.state === 'PLAYING') {
+            modalLobby.classList.add('hidden');
+            modalWordSelect.classList.add('hidden');
+            modalRoundEnded.classList.add('hidden');
+            modalPodium.classList.add('hidden');
+            countdownOverlay.classList.add('hidden');
+
+            const isDrawer = (window.currentSid === data.current_drawer);
+            console.log('[app.js] PLAYING state sync -> isDrawer:', isDrawer);
+            CanvasManager.setDrawerMode(isDrawer);
+
+            if (isDrawer) {
+                if (drawingToolbar) drawingToolbar.classList.remove('hidden');
+                turnStatusText.textContent = "Giliran kamu menggambar!";
+            } else {
+                if (drawingToolbar) drawingToolbar.classList.add('hidden');
+                turnStatusText.textContent = "Tebak gambarnya:";
             }
         }
     });
@@ -450,15 +472,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     window.AppSocket.on('round_started', function(data) {
+        console.log('[app.js] Event round_started received:', data);
         countdownOverlay.classList.add('hidden');
         const isDrawer = (window.currentSid === data.drawer_sid);
+        console.log('[app.js] round_started -> isDrawer:', isDrawer);
         CanvasManager.setDrawerMode(isDrawer);
 
         if (isDrawer) {
-            drawingToolbar.classList.remove('hidden');
+            if (drawingToolbar) drawingToolbar.classList.remove('hidden');
             turnStatusText.textContent = "Giliran kamu menggambar!";
         } else {
-            drawingToolbar.classList.add('hidden');
+            if (drawingToolbar) drawingToolbar.classList.add('hidden');
             turnStatusText.textContent = "Tebak gambarnya:";
         }
     });
