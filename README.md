@@ -1,8 +1,8 @@
-<!-- [v1.0.3-OLD] # MultiGuess v1.0.3 - Real-time Multiplayer Draw & Guess Web App -->
-# MultiGuess v1.0.4 - Real-time Multiplayer Draw & Guess Web App
+<!-- [v1.0.4-OLD] # MultiGuess v1.0.4 - Real-time Multiplayer Draw & Guess Web App -->
+# MultiGuess v1.0.5 - Real-time Multiplayer Draw & Guess Web App
 
-<!-- [v1.0.3-OLD] **Current version: 1.0.3** -->
-**Current version: 1.0.4**
+<!-- [v1.0.4-OLD] **Current version: 1.0.4** -->
+**Current version: 1.0.5**
 
 MultiGuess adalah aplikasi web multiplayer real-time (game Tebak Gambar) yang dirancang khusus untuk berjalan dengan ringan di server lokal (Flask + Flask-SocketIO) di **Termux Android**. Pemain cukup menghubungkan HP mereka ke jaringan Wi-Fi LAN yang sama dan membuka URL aplikasi dari browser HP masing-masing.
 
@@ -10,8 +10,8 @@ Aplikasi ini dikembangkan dengan pendekatan **Mobile-First** dan memberikan **Na
 
 ---
 
-<!-- [v1.0.3-OLD] ## 🚀 Fitur & Peningkatan Utama (v1.0.3) -->
-## 🚀 Fitur & Peningkatan Utama (v1.0.4)
+<!-- [v1.0.4-OLD] ## 🚀 Fitur & Peningkatan Utama (v1.0.4) -->
+## 🚀 Fitur & Peningkatan Utama (v1.0.5)
 
 1. **Native App Feel & Haptic Feedback**:
    - Layout fixed full-viewport (`100dvh`, `overflow: hidden`, safe-area inset)
@@ -20,31 +20,42 @@ Aplikasi ini dikembangkan dengan pendekatan **Mobile-First** dan memberikan **Na
    - Canvas menggunakan Pointer Events (`setPointerCapture`) dengan gesture drawing halus
    - Overlay otomatis jika HP dibuka dalam mode Landscape
 
-2. **Inter-Round 3-2-1 Countdown**:
+2. **Sound System Preloader & Playback (v1.0.5 Baru)**:
+   - Client preloader full-screen dengan progress %, speed (MB/s), ETA, dan tombol skip
+   - IndexedDB store (`multiguess_db` v2) menyimpan file mp3 lokal agar reload instan
+   - Web Audio API (`AudioContext`) latency rendah dengan unlock saat interaksi pertama
+   - Efek suara untuk Tebakan Benar, Tebakan Salah, Chat Censor, Ronde Gagal, Countdown <10s, Podium Pemenang, Giliran Menggambar, dan Random User Reactions (3 sound acak unik per user)
+   - Setting toggle "Sound effects" di lobby modal
+
+3. **Presisi Drawing & Synchronized Drawer Toolbar (v1.0.5 Fix)**:
+   - Fixed 4:3 canvas aspect ratio di semua layar dengan koordinat ternormalisasi (0-1)
+   - Toolbar gambar dan canvas drawer mode dipastikan selalu aktif untuk drawer di setiap pergantian ronde
+
+4. **Inter-Round 3-2-1 Countdown**:
    - Countdown overlay visual 3-2-1 sebelum timer ronde dimulai
    - Vibrate haptic tiap pergantian angka countdown
 
-3. **Sistem Room & Host Controls**:
+5. **Sistem Room & Host Controls**:
    - Pembuatan room dengan kode 4 huruf kapital acak (misal: `KXQP`)
    - Normalization otomatis case & whitespace saat join room
    - Pengaturan durasi timer (60/75/90 detik) dan jumlah ronde (3/5/7 ronde) khusus Host
    - Tombol "← Kembali" saat host sendiri (membatalkan room) dan "← Keluar" saat ada pemain lain (host migration otomatis)
 
-4. **Gameplay Loop & Gambar**:
+6. **Gameplay Loop & Gambar**:
    - Bergiliran menjadi *drawer* setiap ronde
    - *Drawer* memilih 1 dari 3 kata acak (Bahasa Indonesia)
    - Toolbar menggambar lengkap: Pilihan warna, ketebalan kuas, Hapus (Eraser), Undo, dan Hapus Semua
    - Canvas handshake (`canvas_ready`) dan stroke replay `requestAnimationFrame` untuk performa halus tanpa lag
 
-5. **Chat & Guess System (Smart Similarity)**:
+7. **Chat & Guess System (Smart Similarity)**:
    - Sistem tebak kata terintegrasi dalam input chat
    - Smart similarity detection (`SequenceMatcher` ratio $\ge 0.7$ + Levenshtein distance $\le 2$) untuk peringatan privat **"Hampir benar!"**
    - Sensor otomatis pesan jika pemain yang sudah menebak benar mencoba membocorkan jawaban
    - Poin dinamis berdasarkan kecepatan tebakan (Maksimum 100 poin) + poin bonus untuk *drawer*
 
-6. **Server Cache & Client IndexedDB**:
-   - Server-side **Temporal Cache** (`cache/temporal/`) dan **Persistent Cache** (`cache/persistent/rooms_index.json`) dengan atomic replace
-   - Client-side **IndexedDB Wrapper** (`multiguess_db`) menyimpan nama pemain dan preferensi haptic secara otomatis
+8. **Server Cache & Client IndexedDB**:
+   - Server-side **Temporal Cache** (`cache/temporal/`) dan **Persistent Cache** (`cache/persistent/rooms_index.json`, `cache/persistent/sound_manifest.json`) dengan atomic replace
+   - Client-side **IndexedDB Wrapper** (`multiguess_db` v2) menyimpan nama pemain, preferensi audio/haptic, dan sound mp3
 
 ---
 
@@ -77,11 +88,11 @@ Setelah server berjalan, console akan menampilkan banner informasi port, URL LAN
 
 ```
 ============================================
-  MultiGuess server v1.0.4
+  MultiGuess server v1.0.5
   Local:   http://127.0.0.1:5231
   Network: http://192.168.1.42:5231
   Share this URL with players on the same WiFi
-  Cache dir: /path/to/cache (temporal: 0 files, persistent: 1 files)
+  Cache dir: /path/to/cache (temporal: 0 files, persistent: 2 files)
 ============================================
 ```
 
@@ -99,19 +110,23 @@ multiguess/
 ├── app.py                    # Main Entry Point (SATU-SATUNYA .py di root)
 ├── modules/                  # Python Modular Backend
 │   ├── __init__.py
-│   ├── config.py             # App Constants & Version
+│   ├── config.py             # App Constants & Version (v1.0.5)
 │   ├── game_state.py         # RoomManager & Game State Logic
+│   ├── sound_manifest.py     # Sound Manifest & SHA256 Hash Indexing (v1.0.5)
 │   ├── words.py              # Word Bank (~150 Kata Indonesia)
 │   ├── scoring.py            # Point System & Smart Similarity Matching
 │   ├── cache.py              # Server Temporal & Persistent Cache
 │   └── network.py            # Free Port & LAN IP Detection
+├── Sound/                    # MP3 Audio Effects Folder
 ├── templates/
-│   └── index.html            # UI Single Page App (Bottom Sheet Modals)
+│   └── index.html            # UI Single Page App (Bottom Sheet Modals + Sound Loader)
 ├── static/
-│   ├── style.css             # Native Mobile CSS (Active Scale, Safe Areas)
-│   ├── app.js                # Socket.IO Event Handlers & View Switching
-│   ├── canvas.js             # Canvas Manager (Pointer Events & DPR Scaling)
-│   └── storage.js            # IndexedDB Wrapper & Haptic Vibration Helper
+│   ├── style.css             # Native Mobile CSS (Fixed 4:3 Aspect Ratio + Loader UI)
+│   ├── app.js                # Socket.IO Event Handlers & View Switching (v1.0.5)
+│   ├── canvas.js             # Canvas Manager (Normalized Coords 0-1 & Pointer Events)
+│   ├── sound-loader.js       # Preloader & Progress Metrics (v1.0.5)
+│   ├── sound-player.js       # Web Audio API Sound System (v1.0.5)
+│   └── storage.js            # IndexedDB Wrapper v2 & User UUID Helper
 ├── cache/                    # Server Auto-created Cache Folder
 ├── requirements.txt
 └── README.md

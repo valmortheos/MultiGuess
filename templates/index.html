@@ -7,13 +7,26 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <!-- [v1.0.3-OLD] <title>MultiGuess v1.0.3 - Game Draw & Guess</title> -->
-    <title>MultiGuess v1.0.4 - Game Draw & Guess</title>
+    <!-- [v1.0.4-OLD] <title>MultiGuess v1.0.4 - Game Draw & Guess</title> -->
+    <title>MultiGuess v1.0.5 - Game Draw & Guess</title>
     <link rel="stylesheet" href="/static/style.css">
     <!-- Socket.IO CDN -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
+
+    <!-- Sound Preloader Loading Screen Overlay -->
+    <div id="sound-loader-screen" class="hidden">
+        <div class="loader-card">
+            <h2>Menyiapkan Game</h2>
+            <p id="loader-status-text" class="loader-status-text">Memeriksa file audio...</p>
+            <div class="progress-bar-container">
+                <div id="progress-bar-fill" class="progress-bar-fill"></div>
+            </div>
+            <div id="loader-metrics-text" class="loader-metrics">-- MB/s · ETA: --s</div>
+            <button id="btn-skip-audio" class="btn-skip-audio" type="button">Lewati Audio</button>
+        </div>
+    </div>
 
     <!-- Toast Notification Overlay -->
     <div id="app-toast" class="toast-popup hidden">
@@ -70,8 +83,8 @@
                 </div>
             </div>
 
-            <!-- [v1.0.3-OLD] <div class="footer-version">MultiGuess v1.0.3</div> -->
-            <div class="footer-version">MultiGuess v1.0.4</div>
+            <!-- [v1.0.4-OLD] <div class="footer-version">MultiGuess v1.0.4</div> -->
+            <div class="footer-version">MultiGuess v1.0.5</div>
         </div>
     </div>
 
@@ -109,11 +122,7 @@
                     <canvas id="game-canvas"></canvas>
                 </div>
 
-                <!-- [v1.0.3-OLD] Original toolbar structure preserved below in comment if needed -->
-                <!--
-                <div id="drawing-toolbar" class="drawing-toolbar hidden"> ... </div>
-                -->
-                <!-- Drawing Toolbar (Only visible to active drawer) - Enhanced v1.0.4 -->
+                <!-- Drawing Toolbar (Only visible to active drawer) -->
                 <div id="drawing-toolbar" class="drawing-toolbar hidden" aria-label="Toolbar Gambar">
                     <div class="color-palette" id="color-palette-container">
                         <button class="color-btn active" data-color="#111827" style="background-color: #111827;" aria-label="Hitam"></button>
@@ -181,7 +190,7 @@
 
             <!-- Host Game Settings -->
             <div id="host-settings" class="settings-group hidden">
-                <h3>Pengaturan Game (Host)</h3>
+                <h3>Pengaturan Game</h3>
                 <div class="setting-item">
                     <label>Durasi Timer Ronde:</label>
                     <select id="setting-timer" class="select-input">
@@ -202,6 +211,10 @@
                     <label>Haptic Feedback (Getar):</label>
                     <input type="checkbox" id="toggle-haptic" checked style="width: 18px; height: 18px;">
                 </div>
+                <div class="setting-item">
+                    <label>Sound Effects (Suara):</label>
+                    <input type="checkbox" id="toggle-sound" checked style="width: 18px; height: 18px;">
+                </div>
             </div>
 
             <div class="lobby-players">
@@ -214,8 +227,8 @@
                 <div id="waiting-host-msg" class="waiting-text hidden">Menunggu host memulai permainan...</div>
             </div>
 
-            <!-- [v1.0.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.3</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.4</div>
+            <!-- [v1.0.4-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.4</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.5</div>
         </div>
     </div>
 
@@ -269,6 +282,8 @@
     </div>
 
     <script src="/static/storage.js"></script>
+    <script src="/static/sound-loader.js"></script>
+    <script src="/static/sound-player.js"></script>
     <script src="/static/canvas.js"></script>
     <script src="/static/app.js"></script>
 </body>
