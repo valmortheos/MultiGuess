@@ -137,6 +137,8 @@ const SoundLoader = (function() {
         } catch (err) {
             console.warn('[SoundLoader] Manifest or sound loading failed non-blockingly:', err);
             hideLoader();
+        } finally {
+            hideLoader();
         }
     }
 
