@@ -30,9 +30,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // Start Sound Loader non-blockingly (do NOT await before attaching socket/UI handlers)
-    SoundLoader.loadSounds().catch(err => {
-        console.warn('[SoundLoader] Non-blocking load exception:', err);
-    });
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('nosound') === '1') {
+        console.log('[init] sound disabled via ?nosound=1');
+    } else {
+        SoundLoader.loadSounds().catch(err => {
+            console.warn('[SoundLoader] Non-blocking load exception:', err);
+        });
+    }
 
     // Canvas Init
     CanvasManager.init('game-canvas');
@@ -233,54 +238,65 @@ document.addEventListener('DOMContentLoaded', async function() {
     function safeEmit(event, data) {
         const socket = window.AppSocket;
         if (socket && socket.connected) {
-            console.log(`[emit] ${event}`, data, { connected: true });
+            console.log(`[safeEmit] ${event}`, data, { connected: true });
             socket.emit(event, data);
+            return true;
         } else if (socket) {
-            console.warn(`[socket] not connected, queueing ${event}`, data);
+            console.warn(`[safeEmit] socket not connected, queueing: ${event}`, data);
             showToast('Menghubungkan ke server...');
             socket.once('connect', () => {
-                console.log(`[emit-queued] ${event}`, data, { connected: true });
+                console.log(`[safeEmit] flushing queued: ${event}`, data);
                 socket.emit(event, data);
             });
+            return false;
         } else {
-            console.error('[socket] AppSocket instance not found');
+            console.error('[safeEmit] AppSocket instance not found');
             showToast('Gagal terhubung ke server Socket.IO');
+            return false;
         }
     }
 
-    // Event Handlers - Room Creation & Joining
+    // Event Handlers - Room Creation & Joining with Diagnostic Logs
     btnCreateRoom.addEventListener('click', async function() {
+        console.log('[btn] create-room clicked');
         vibrate(10);
         try {
             const name = await savePlayerName();
+            console.log('[btn] name =', JSON.stringify(name));
             if (!name) {
-                showToast('Masukkan nama kamu terlebih dahulu!');
+                showToast('Isi nama dulu ya');
                 return;
             }
-            safeEmit('create_room', { player_name: name });
+            console.log('[btn] socket.connected =', window.AppSocket?.connected);
+            safeEmit('create_room', { player_name: name, name: name });
+            console.log('[emit] create_room sent OK');
         } catch (err) {
-            console.error('[btnCreateRoom] error:', err);
-            showToast('Terjadi kesalahan saat membuat room.');
+            console.error('[btn] error:', err);
+            showToast('Error: ' + err.message);
         }
     });
 
     btnJoinRoom.addEventListener('click', async function() {
+        console.log('[btn] join-room clicked');
         vibrate(10);
         try {
             const name = await savePlayerName();
             const rawCode = inputRoomCode.value.trim();
+            console.log('[btn] name =', JSON.stringify(name), 'code =', JSON.stringify(rawCode));
             if (!name) {
-                showToast('Masukkan nama kamu terlebih dahulu!');
+                showToast('Isi nama dulu ya');
                 return;
             }
             if (!rawCode) {
                 showToast('Masukkan kode room terlebih dahulu!');
                 return;
             }
-            safeEmit('join_room', { player_name: name, room_code: rawCode });
+            console.log('[btn] socket.connected =', window.AppSocket?.connected);
+            safeEmit('join_room', { player_name: name, name: name, room_code: rawCode });
+            console.log('[emit] join_room sent OK');
         } catch (err) {
-            console.error('[btnJoinRoom] error:', err);
-            showToast('Terjadi kesalahan saat join room.');
+            console.error('[btn] error:', err);
+            showToast('Error: ' + err.message);
         }
     });
 

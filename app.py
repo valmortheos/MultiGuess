@@ -341,10 +341,15 @@ def dev_bot_status():
     return jsonify({'active_bots': active})
 
 # SocketIO Handlers
+@socketio.on('connect')
+def handle_connect():
+    print(f'[connect] sid={request.sid}')
+    return True
+
 @socketio.on('create_room')
 def handle_create_room(data):
-    player_name = data.get('player_name', '').strip()
-    print(f'[create_room] sid={request.sid} name={player_name}')
+    player_name = data.get('player_name', '').strip() or data.get('name', '').strip()
+    print(f'[create_room] sid={request.sid} name={player_name!r}')
     if not player_name:
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
         return
