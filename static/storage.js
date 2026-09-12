@@ -118,10 +118,28 @@ function vibrate(pattern) {
     }
 }
 
+/* [v2.0.2-OLD]
 function getOrCreateUserId() {
     let userId = localStorage.getItem('mg_user_id');
     if (!userId) {
         userId = 'user_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+        localStorage.setItem('mg_user_id', userId);
+    }
+    return userId;
+}
+*/
+function getOrCreateUserId() {
+    let userId = localStorage.getItem('mg_user_id');
+    if (!userId) {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            userId = crypto.randomUUID();
+        } else {
+            userId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
         localStorage.setItem('mg_user_id', userId);
     }
     return userId;

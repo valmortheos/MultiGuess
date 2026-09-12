@@ -3,7 +3,7 @@ import time
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
-from modules.config import APP_VERSION
+from modules.config import APP_VERSION, DEV_MODE
 from modules.network import find_free_port, get_lan_ip
 from modules.words import pick_three_words
 from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
@@ -11,6 +11,9 @@ from modules.cache import init_cache, get_cache_summary, persistent_load, persis
 from modules.game_state import RoomManager, normalize_room_code
 from modules.sound_manifest import get_sound_manifest, SOUND_DIR
 from modules.profanity import contains_profanity, is_profane, log_moderation
+from modules.dev_bot import (
+    active_dev_bots, get_active_bot, spawn_bot, remove_bot, trigger_bot_reaction
+)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'multiguess-termux-secret-key-2025'
@@ -35,6 +38,10 @@ def emit_play_sound(room_code, payload, target_sid=None, target_sids=None):
     else:
         socketio.emit('play_sound', payload, to=room_code)
 
+    bot = get_active_bot(room_code)
+    if bot:
+        bot.on_play_sound(payload)
+
 def start_next_turn(room_code):
     room = room_mgr.get_room(room_code)
     if not room:
@@ -43,9 +50,10 @@ def start_next_turn(room_code):
     room['timer_running'] = False
     room['has_played_time_remaining'] = False
 
-    if len(room['players']) < 2:
+    human_players = [sid for sid, p in room['players'].items() if not p.get('is_bot')]
+    if len(human_players) < 2:
         room['state'] = 'LOBBY'
-        socketio.emit('system_message', {'text': 'Pemain kurang dari 2. Permainan kembali ke lobby.'}, to=room_code)
+        socketio.emit('system_message', {'text': 'Pemain manusia kurang dari 2. Permainan kembali ke lobby.'}, to=room_code)
         broadcast_room_update(room_code)
         room_mgr.save_cache()
         return
@@ -232,6 +240,106 @@ def sound_manifest():
     manifest = get_sound_manifest()
     return jsonify(manifest)
 
+# DEV MODE API ENDPOINTS
+def check_dev_mode_and_host(room_code):
+    if not DEV_MODE:
+        return False, jsonify({'error': 'DEV_MODE is disabled'}), 403
+    room = room_mgr.get_room(room_code)
+    if not room:
+        return False, jsonify({'error': f'Room {room_code} not found'}), 404
+
+    req_sid = request.headers.get('X-Socket-ID') or request.args.get('sid') or (request.json.get('sid') if request.is_json and request.json else None)
+    if not req_sid or room.get('host_sid') != req_sid:
+        return False, jsonify({'error': 'Only host can perform dev actions'}), 403
+    return True, room, None
+
+@app.route('/api/dev/bot/join', methods=['POST'])
+def dev_bot_join():
+    data = request.get_json() or {}
+    room_code = normalize_room_code(data.get('room_code'))
+    ok, res, code = check_dev_mode_and_host(room_code)
+    if not ok:
+        return res, code
+
+    success, result = spawn_bot(socketio, room_mgr, room_code)
+    if not success:
+        return jsonify({'error': str(result)}), 400
+
+    broadcast_room_update(room_code)
+    return jsonify({'message': f'Bot {result.bot_name} joined room', 'bot_sid': result.sid})
+
+@app.route('/api/dev/bot/leave', methods=['POST'])
+def dev_bot_leave():
+    data = request.get_json() or {}
+    room_code = normalize_room_code(data.get('room_code'))
+    ok, res, code = check_dev_mode_and_host(room_code)
+    if not ok:
+        return res, code
+
+    success, result = remove_bot(socketio, room_mgr, room_code)
+    if not success:
+        return jsonify({'error': str(result)}), 400
+
+    broadcast_room_update(room_code)
+    return jsonify({'message': 'Bot left room'})
+
+@app.route('/api/dev/bot/trigger_sound', methods=['POST'])
+def dev_bot_trigger_sound():
+    data = request.get_json() or {}
+    room_code = normalize_room_code(data.get('room_code'))
+    sound_type = data.get('type', 'CorrectAnswer')
+    ok, res, code = check_dev_mode_and_host(room_code)
+    if not ok:
+        return res, code
+
+    payload = {'type': sound_type}
+    emit_play_sound(room_code, payload)
+    return jsonify({'message': f'Triggered sound {sound_type} broadcast'})
+
+@app.route('/api/dev/bot/trigger_reaction', methods=['POST'])
+def dev_bot_trigger_reaction():
+    data = request.get_json() or {}
+    room_code = normalize_room_code(data.get('room_code'))
+    slot = data.get('slot', 1)
+    ok, res, code = check_dev_mode_and_host(room_code)
+    if not ok:
+        return res, code
+
+    success, msg = trigger_bot_reaction(socketio, room_mgr, room_code, slot)
+    if not success:
+        return jsonify({'error': msg}), 400
+    return jsonify({'message': msg})
+
+@app.route('/api/dev/bot/force_round_end', methods=['POST'])
+def dev_bot_force_round_end():
+    data = request.get_json() or {}
+    room_code = normalize_room_code(data.get('room_code'))
+    ok, res, code = check_dev_mode_and_host(room_code)
+    if not ok:
+        return res, code
+
+    room = res
+    if room['state'] in ['PLAYING', 'COUNTDOWN', 'SELECTING_WORD']:
+        room['timer_running'] = False
+        end_turn(room_code)
+        return jsonify({'message': 'Forced round end successfully'})
+    return jsonify({'error': f'Cannot end round in state {room["state"]}'}), 400
+
+@app.route('/api/dev/bot/status', methods=['GET'])
+def dev_bot_status():
+    if not DEV_MODE:
+        return jsonify({'error': 'DEV_MODE is disabled'}), 403
+    room_code = normalize_room_code(request.args.get('room_code'))
+    active = []
+    if room_code:
+        bot = get_active_bot(room_code)
+        if bot:
+            active.append({'room_code': room_code, 'bot_name': bot.bot_name, 'bot_sid': bot.sid})
+    else:
+        for r_code, bot in active_dev_bots.items():
+            active.append({'room_code': r_code, 'bot_name': bot.bot_name, 'bot_sid': bot.sid})
+    return jsonify({'active_bots': active})
+
 # SocketIO Handlers
 @socketio.on('create_room')
 def handle_create_room(data):
@@ -346,11 +454,12 @@ def handle_start_game(data):
     if not room or room['host_sid'] != sid:
         return
 
-    if len(room['players']) < 2:
-        emit('error_message', {'message': 'Minimal 2 pemain untuk memulai permainan.'})
+    human_players = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
+    if len(human_players) < 2:
+        emit('error_message', {'message': 'Minimal 2 pemain manusia untuk memulai permainan.'})
         return
 
-    p_sids = list(room['players'].keys())
+    p_sids = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
     import random
     random.shuffle(p_sids)
     room['drawer_order'] = p_sids
@@ -645,7 +754,7 @@ if __name__ == '__main__':
     ip = get_lan_ip()
 
     print("============================================")
-    print(f"  MultiGuess server v{APP_VERSION}")
+    print(f"  MultiGuess server v{APP_VERSION} (dev_mode={DEV_MODE})")
     print(f"  Local:   http://127.0.0.1:{port}")
     print(f"  Network: http://{ip}:{port}")
     print("  Share this URL with players on the same WiFi")

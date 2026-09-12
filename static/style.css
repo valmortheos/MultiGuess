@@ -529,6 +529,7 @@ input[type="text"]:focus {
     position: relative;
 }
 
+/* [v2.0.2-OLD]
 .chat-list {
     flex: 1;
     overflow-y: auto;
@@ -538,6 +539,24 @@ input[type="text"]:focus {
     flex-direction: column;
     gap: 6px;
     margin-bottom: 8px;
+}
+*/
+.chat-list {
+    flex: 1 1 auto;
+    min-height: 120px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 360px) {
+    .chat-list {
+        min-height: 100px;
+    }
 }
 
 .chat-msg {
@@ -937,6 +956,7 @@ input[type="text"]:focus {
 }
 
 /* Reaction Buttons Bar (v2.0.2) */
+/* [v2.0.2-OLD]
 .reaction-bar {
     display: flex;
     justify-content: center;
@@ -944,10 +964,20 @@ input[type="text"]:focus {
     margin-bottom: 6px;
     flex-shrink: 0;
 }
+*/
+.reaction-bar {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 6px;
+    flex-shrink: 0;
+}
 
 .btn-reaction {
     width: 40px;
     height: 40px;
+    min-width: 40px;
+    min-height: 40px;
     border-radius: 50%;
     border: none;
     font-size: 15px;
@@ -1054,4 +1084,93 @@ input[type="text"]:focus {
         opacity: 0;
         transform: translateY(-40px);
     }
+}
+
+/* Dev Panel Styling (v2.0.3) */
+.dev-sheet {
+    max-height: 85vh;
+    overflow-y: auto;
+    text-align: left !important;
+}
+
+.dev-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 8px;
+}
+
+.dev-section {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+.dev-section h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.dev-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-sm {
+    height: 34px;
+    font-size: 13px;
+    padding: 0 12px;
+}
+
+.badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.badge-active {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #86efac;
+}
+
+.badge-inactive {
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+}
+
+.dev-ack-line {
+    font-size: 11px;
+    color: #4b5563;
+    font-family: monospace;
+    margin-top: 6px;
+    background: #ffffff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.dev-console {
+    background: #1e293b;
+    color: #f8fafc;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 8px;
+    border-radius: 6px;
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+.dev-console .log-line {
+    margin-bottom: 2px;
+    word-break: break-all;
 }

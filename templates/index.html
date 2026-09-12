@@ -8,7 +8,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <!-- [v1.0.5-OLD] <title>MultiGuess v1.0.5 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.0.2 - Game Draw & Guess</title>
+    <!-- [v2.0.2-OLD] <title>MultiGuess v2.0.2 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.0.3 - Game Draw & Guess</title>
     <link rel="stylesheet" href="/static/style.css">
     <!-- Socket.IO CDN -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -84,7 +85,8 @@
             </div>
 
             <!-- [v1.0.5-OLD] <div class="footer-version">MultiGuess v1.0.5</div></div> -->
-            <div class="footer-version">MultiGuess v2.0.2</div>
+            <!-- [v2.0.2-OLD] <div class="footer-version">MultiGuess v2.0.2</div> -->
+            <div class="footer-version">MultiGuess v2.0.3</div>
         </div>
     </div>
 
@@ -102,6 +104,12 @@
                 <div id="timer-display" class="timer-box">75s</div>
             </div>
             <div class="header-right">
+                <button id="btn-dev-panel" class="btn btn-icon-secondary hidden" title="Dev Panel" style="margin-right: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                    </svg>
+                    Dev
+                </button>
                 <button id="btn-leave" class="btn btn-icon-danger" title="Keluar">✕</button>
             </div>
         </header>
@@ -145,6 +153,13 @@
                         <button id="btn-clear" type="button" class="btn-tool btn-tool-danger">Hapus Semua</button>
                     </div>
                 </div>
+
+                <!-- Action Bar / Reaction Buttons Bar (v2.0.3 Repositioned to Toolbar/Action Bar) -->
+                <div id="reaction-bar" class="reaction-bar">
+                    <button type="button" class="btn-reaction" data-slot="1" title="Reaction 1">1</button>
+                    <button type="button" class="btn-reaction" data-slot="2" title="Reaction 2">2</button>
+                    <button type="button" class="btn-reaction" data-slot="3" title="Reaction 3">3</button>
+                </div>
             </section>
 
             <!-- Leaderboard & Chat Section -->
@@ -169,13 +184,6 @@
 
                     <!-- Guess Toast Notification -->
                     <div id="toast-hampir-benar" class="toast toast-warning hidden">Hampir benar! (Beda 1-2 huruf)</div>
-
-                    <!-- Reaction Buttons Bar -->
-                    <div id="reaction-bar" class="reaction-bar">
-                        <button type="button" class="btn-reaction" data-slot="1" title="Reaction 1">1</button>
-                        <button type="button" class="btn-reaction" data-slot="2" title="Reaction 2">2</button>
-                        <button type="button" class="btn-reaction" data-slot="3" title="Reaction 3">3</button>
-                    </div>
 
                     <!-- Input Box -->
                     <form id="chat-form" class="chat-form">
@@ -236,7 +244,8 @@
             </div>
 
             <!-- [v1.0.5-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.5</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.0.2</div>
+            <!-- [v2.0.2-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.0.2</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.0.3</div>
         </div>
     </div>
 
@@ -248,6 +257,72 @@
             <div class="podium-actions">
                 <button id="btn-confirm-yes" class="btn btn-primary" style="flex: 1;">Ya</button>
                 <button id="btn-confirm-no" class="btn btn-secondary" style="flex: 1;">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet Modal 5: Host Development Panel (v2.0.3) -->
+    <div id="modal-dev-panel" class="modal hidden">
+        <div class="modal-bottom-sheet dev-sheet">
+            <div class="dev-panel-header">
+                <h2>🛠 Development Panel</h2>
+                <button id="btn-close-dev-panel" class="btn-icon-danger" style="font-size: 20px;">✕</button>
+            </div>
+
+            <!-- Bot Section -->
+            <div class="dev-section">
+                <h3>Bot Virtual</h3>
+                <div class="dev-row">
+                    <button id="btn-dev-invite-bot" class="btn btn-secondary btn-sm">Invite Bot</button>
+                    <button id="btn-dev-remove-bot" class="btn btn-secondary btn-sm">Remove Bot</button>
+                    <span id="dev-bot-status-badge" class="badge badge-inactive">Bot Inactive</span>
+                </div>
+            </div>
+
+            <!-- Sound Test Section -->
+            <div class="dev-section">
+                <h3>Sound Test</h3>
+                <div class="dev-row">
+                    <select id="dev-sound-type" class="select-input">
+                        <option value="CorrectAnswer">CorrectAnswer</option>
+                        <option value="WrongAnswer">WrongAnswer</option>
+                        <option value="FailedRound">FailedRound</option>
+                        <option value="WinnerScore">WinnerScore</option>
+                        <option value="Censored">Censored</option>
+                        <option value="Random">Random</option>
+                        <option value="YourTurn">YourTurn</option>
+                        <option value="TimeRemaining">TimeRemaining</option>
+                    </select>
+                    <button id="btn-dev-trigger-sound" class="btn btn-primary btn-sm">Trigger</button>
+                </div>
+                <div id="dev-sound-ack-log" class="dev-ack-line">Bot ACK: --</div>
+            </div>
+
+            <!-- Reaction Test Section -->
+            <div class="dev-section">
+                <h3>Reaction Test (sebagai Bot)</h3>
+                <div class="dev-row">
+                    <button type="button" class="btn-reaction btn-dev-reaction" data-slot="1">1</button>
+                    <button type="button" class="btn-reaction btn-dev-reaction" data-slot="2">2</button>
+                    <button type="button" class="btn-reaction btn-dev-reaction" data-slot="3">3</button>
+                </div>
+                <div id="dev-reaction-ack-log" class="dev-ack-line">Bot ACK: --</div>
+            </div>
+
+            <!-- Round Test Section -->
+            <div class="dev-section">
+                <h3>Round Test</h3>
+                <div class="dev-row">
+                    <button id="btn-dev-force-round-end" class="btn btn-secondary btn-sm btn-tool-danger">Force Round End</button>
+                </div>
+            </div>
+
+            <!-- Console Log Section -->
+            <div class="dev-section">
+                <h3>Bot Console Log</h3>
+                <div id="dev-console-log" class="dev-console">
+                    <div class="log-line">[system] Dev Panel Ready</div>
+                </div>
             </div>
         </div>
     </div>

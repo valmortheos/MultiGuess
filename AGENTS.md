@@ -16,4 +16,5 @@
 - Verifikasi `git diff --stat` → added > deleted sebelum commit.
 
 ## VERSI SAAT INI
-- Current version: **2.0.2**
+<!-- [v2.0.2-OLD] - Current version: **2.0.2** -->
+- Current version: **2.0.3**

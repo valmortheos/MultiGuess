@@ -1,8 +1,10 @@
 <!-- [v1.0.5-OLD] # MultiGuess v1.0.5 - Real-time Multiplayer Draw & Guess Web App -->
-# MultiGuess v2.0.2 - Real-time Multiplayer Draw & Guess Web App
+<!-- [v2.0.2-OLD] # MultiGuess v2.0.2 - Real-time Multiplayer Draw & Guess Web App -->
+# MultiGuess v2.0.3 - Real-time Multiplayer Draw & Guess Web App
 
 <!-- [v1.0.5-OLD] **Current version: 1.0.5** -->
-**Current version: 2.0.2**
+<!-- [v2.0.2-OLD] **Current version: 2.0.2** -->
+**Current version: 2.0.3**
 
 ## 🤖 Untuk AI Agent
 - Silakan lihat [AGENTS.md](AGENTS.md) untuk aturan pengubahan kode dan proteksi folder.
@@ -15,7 +17,13 @@ Aplikasi ini dikembangkan dengan pendekatan **Mobile-First** dan memberikan **Na
 ---
 
 <!-- [v1.0.5-OLD] ## 🚀 Fitur & Peningkatan Utama (v1.0.5) -->
-## 🚀 Fitur & Peningkatan Utama (v2.0.2)
+<!-- [v2.0.2-OLD] ## 🚀 Fitur & Peningkatan Utama (v2.0.2) -->
+## 🚀 Fitur & Peningkatan Utama (v2.0.3)
+
+0. **Development Mode & Bot Virtual (v2.0.3 Baru)**:
+   - Host dapat membuka **Development Panel** ("🛠 Dev") di header room untuk menguji fitur sound, reaction, dan flow round secara otomatis tanpa butuh multiple HP fisik.
+   - Endpoint REST `/api/dev/bot/*` dilindungi flag `DEV_MODE` (default active `1`) dan validasi host `X-Socket-ID`.
+   - Di lingkungan production (seperti Cloudflare Tunnel/Public Access), set environment variable `MG_DEV_MODE=0` untuk menonaktifkan endpoint dev mode (mengembalikan status HTTP 403 Forbidden).
 
 1. **Moderasi Kata Kasar & Censor Overlay (v2.0.2 Baru)**:
    - Filter profanity Bahasa Indonesia, Sunda, Jawa, dan Inggris dengan normalisasi anti-bypass (leetspeak, symbol stripping, repeat collapsing, word boundary).
@@ -106,7 +114,7 @@ Setelah server berjalan, console akan menampilkan banner informasi port, URL LAN
 
 ```
 ============================================
-  MultiGuess server v2.0.2
+  MultiGuess server v2.0.3
   Local:   http://127.0.0.1:5231
   Network: http://192.168.1.42:5231
   Share this URL with players on the same WiFi
