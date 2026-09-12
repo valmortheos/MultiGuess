@@ -3,6 +3,7 @@ window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
 window.currentSid = null;
+window.roomPlayerCount = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Canvas Init
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const displayRoundBadge = document.getElementById('round-badge');
     const timerDisplay = document.getElementById('timer-display');
     const btnLeave = document.getElementById('btn-leave');
+    const btnBackLobby = document.getElementById('btn-back-lobby');
 
     const turnStatusText = document.getElementById('turn-status-text');
     const wordMaskDisplay = document.getElementById('word-mask-display');
@@ -42,6 +44,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatInput = document.getElementById('chat-input');
     const toastHampirBenar = document.getElementById('toast-hampir-benar');
 
+    // Toast Popup
+    const appToast = document.getElementById('app-toast');
+    const toastMessage = document.getElementById('toast-message');
+
+    function showToast(msg, duration = 3000) {
+        toastMessage.textContent = msg;
+        appToast.classList.remove('hidden');
+        setTimeout(() => {
+            appToast.classList.add('hidden');
+        }, duration);
+    }
+
     // Modals
     const modalLobby = document.getElementById('modal-lobby');
     const lobbyRoomCode = document.getElementById('lobby-room-code');
@@ -51,6 +65,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const lobbyPlayerList = document.getElementById('lobby-player-list');
     const btnStartGame = document.getElementById('btn-start-game');
     const waitingHostMsg = document.getElementById('waiting-host-msg');
+
+    const modalConfirm = document.getElementById('modal-confirm');
+    const confirmTitle = document.getElementById('confirm-title');
+    const confirmMessage = document.getElementById('confirm-message');
+    const btnConfirmYes = document.getElementById('btn-confirm-yes');
+    const btnConfirmNo = document.getElementById('btn-confirm-no');
+    let onConfirmAction = null;
 
     const modalWordSelect = document.getElementById('modal-word-select');
     const wordCardsContainer = document.getElementById('word-cards-container');
@@ -81,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
     btnCreateRoom.addEventListener('click', function() {
         const name = savePlayerName();
         if (!name) {
-            alert('Masukkan nama kamu terlebih dahulu!');
+            showToast('Masukkan nama kamu terlebih dahulu!');
             return;
         }
         window.AppSocket.emit('create_room', { player_name: name });
@@ -89,26 +110,79 @@ document.addEventListener('DOMContentLoaded', function() {
 
     btnJoinRoom.addEventListener('click', function() {
         const name = savePlayerName();
-        const code = inputRoomCode.value.trim().toUpperCase();
+        const rawCode = inputRoomCode.value.trim();
         if (!name) {
-            alert('Masukkan nama kamu terlebih dahulu!');
+            showToast('Masukkan nama kamu terlebih dahulu!');
             return;
         }
-        if (code.length !== 4) {
-            alert('Kode room harus 4 huruf!');
+        if (!rawCode) {
+            showToast('Masukkan kode room terlebih dahulu!');
             return;
         }
-        window.AppSocket.emit('join_room', { player_name: name, room_code: code });
+        window.AppSocket.emit('join_room', { player_name: name, room_code: rawCode });
+    });
+
+    // Back / Cancel / Leave Header Logic
+    btnBackLobby.addEventListener('click', function() {
+        handleLeaveOrBackAction();
     });
 
     btnLeave.addEventListener('click', function() {
-        if (confirm('Apakah kamu yakin ingin keluar dari room?')) {
-            if (window.currentRoomCode) {
-                window.AppSocket.emit('leave_room', { room_code: window.currentRoomCode });
+        handleLeaveOrBackAction();
+    });
+
+    function handleLeaveOrBackAction() {
+        if (!window.currentRoomCode) {
+            resetToHome();
+            return;
+        }
+
+        if (window.isHost && window.roomPlayerCount <= 1) {
+            confirmTitle.textContent = "Batalkan Room";
+            confirmMessage.textContent = `Batalkan room ${window.currentRoomCode} dan kembali ke menu utama?`;
+            onConfirmAction = function() {
+                window.AppSocket.emit('cancel_room', { room_code: window.currentRoomCode });
+            };
+            modalConfirm.classList.remove('hidden');
+        } else {
+            confirmTitle.textContent = "Keluar dari Room";
+            if (window.isHost) {
+                confirmMessage.textContent = "Keluar dari room? Host akan dipindahkan ke pemain lain.";
+            } else {
+                confirmMessage.textContent = "Keluar dari room dan kembali ke menu utama?";
             }
-            location.reload();
+            onConfirmAction = function() {
+                window.AppSocket.emit('leave_room', { room_code: window.currentRoomCode });
+            };
+            modalConfirm.classList.remove('hidden');
+        }
+    }
+
+    btnConfirmYes.addEventListener('click', function() {
+        modalConfirm.classList.add('hidden');
+        if (typeof onConfirmAction === 'function') {
+            onConfirmAction();
         }
     });
+
+    btnConfirmNo.addEventListener('click', function() {
+        modalConfirm.classList.add('hidden');
+        onConfirmAction = null;
+    });
+
+    function resetToHome() {
+        window.currentRoomCode = null;
+        window.isHost = false;
+        window.roomPlayerCount = 0;
+        screenGame.classList.add('hidden');
+        modalLobby.classList.add('hidden');
+        modalWordSelect.classList.add('hidden');
+        modalRoundEnded.classList.add('hidden');
+        modalPodium.classList.add('hidden');
+        screenHome.classList.remove('hidden');
+        chatList.innerHTML = '';
+        CanvasManager.clear();
+    }
 
     // Host Settings Change
     settingTimer.addEventListener('change', sendHostSettings);
@@ -187,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     btnExitPodium.addEventListener('click', function() {
-        location.reload();
+        resetToHome();
     });
 
     // Socket.IO Incoming Event Receivers
@@ -196,7 +270,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.AppSocket.on('error_message', function(data) {
-        alert(data.message);
+        showToast(data.message);
+    });
+
+    window.AppSocket.on('join_error', function(data) {
+        if (data.reason === 'not_found') {
+            showToast(`Room '${data.code}' tidak ditemukan. Cek kembali kodenya.`);
+        } else if (data.reason === 'in_progress') {
+            showToast(`Room '${data.code}' sedang dalam permainan.`);
+        } else if (data.reason === 'invalid_code') {
+            showToast('Kode room tidak valid.');
+        } else {
+            showToast('Gagal bergabung ke room.');
+        }
+    });
+
+    window.AppSocket.on('room_cancelled', function() {
+        showToast('Room telah dibatalkan.');
+        resetToHome();
+    });
+
+    window.AppSocket.on('left_room_success', function() {
+        resetToHome();
     });
 
     window.AppSocket.on('room_joined', function(data) {
@@ -225,9 +320,17 @@ document.addEventListener('DOMContentLoaded', function() {
     window.AppSocket.on('room_updated', function(data) {
         window.currentRoomCode = data.room_code;
         window.isHost = (window.currentSid === data.host_sid);
+        window.roomPlayerCount = data.players.length;
 
         displayRoundBadge.textContent = `Ronde ${data.current_round}/${data.total_rounds}`;
         playerCount.textContent = data.players.length;
+
+        // Header Back Button Text update (Kembali vs Leave)
+        if (window.isHost && window.roomPlayerCount <= 1) {
+            btnBackLobby.textContent = "← Kembali";
+        } else {
+            btnBackLobby.textContent = "← Keluar";
+        }
 
         // Update Host Controls state
         if (window.isHost && data.state === 'LOBBY') {
