@@ -104,7 +104,7 @@ let hapticEnabled = true;
 
 function setHapticEnabled(enabled) {
     hapticEnabled = enabled;
-    DB.set('settings', 'haptic', enabled ? 'true' : 'false');
+    DB.set('settings', 'haptic_enabled', enabled ? 'true' : 'false');
 }
 
 function vibrate(pattern) {

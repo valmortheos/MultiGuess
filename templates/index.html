@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <!-- [v1.0.4-OLD] <title>MultiGuess v1.0.4 - Game Draw & Guess</title> -->
-    <title>MultiGuess v1.0.5 - Game Draw & Guess</title>
+    <!-- [v1.0.5-OLD] <title>MultiGuess v1.0.5 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.0.2 - Game Draw & Guess</title>
     <link rel="stylesheet" href="/static/style.css">
     <!-- Socket.IO CDN -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -83,8 +83,8 @@
                 </div>
             </div>
 
-            <!-- [v1.0.4-OLD] <div class="footer-version">MultiGuess v1.0.4</div> -->
-            <div class="footer-version">MultiGuess v1.0.5</div>
+            <!-- [v1.0.5-OLD] <div class="footer-version">MultiGuess v1.0.5</div></div> -->
+            <div class="footer-version">MultiGuess v2.0.2</div>
         </div>
     </div>
 
@@ -120,6 +120,7 @@
                 <!-- Canvas Container -->
                 <div id="canvas-container" class="canvas-container">
                     <canvas id="game-canvas"></canvas>
+                    <div id="floating-overlay-container" class="floating-overlay-container"></div>
                 </div>
 
                 <!-- Drawing Toolbar (Only visible to active drawer) -->
@@ -168,6 +169,13 @@
 
                     <!-- Guess Toast Notification -->
                     <div id="toast-hampir-benar" class="toast toast-warning hidden">Hampir benar! (Beda 1-2 huruf)</div>
+
+                    <!-- Reaction Buttons Bar -->
+                    <div id="reaction-bar" class="reaction-bar">
+                        <button type="button" class="btn-reaction" data-slot="1" title="Reaction 1">1</button>
+                        <button type="button" class="btn-reaction" data-slot="2" title="Reaction 2">2</button>
+                        <button type="button" class="btn-reaction" data-slot="3" title="Reaction 3">3</button>
+                    </div>
 
                     <!-- Input Box -->
                     <form id="chat-form" class="chat-form">
@@ -227,8 +235,8 @@
                 <div id="waiting-host-msg" class="waiting-text hidden">Menunggu host memulai permainan...</div>
             </div>
 
-            <!-- [v1.0.4-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.4</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.5</div>
+            <!-- [v1.0.5-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v1.0.5</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.0.2</div>
         </div>
     </div>
 
