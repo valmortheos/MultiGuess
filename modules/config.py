@@ -1,0 +1,2 @@
+APP_VERSION = "1.0.3"
+CACHE_DIR_NAME = "cache"

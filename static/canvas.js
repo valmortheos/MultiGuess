@@ -4,8 +4,9 @@ const CanvasManager = (function() {
     let currentColor = '#111827';
     let currentLineWidth = 6;
     let isEraser = false;
-    let strokes = []; // Local stroke buffer
+    let strokes = [];
     let isDrawerMode = false;
+    let isCanvasReady = false;
     let currentPointerId = null;
 
     function init(canvasId) {
@@ -13,33 +14,41 @@ const CanvasManager = (function() {
         if (!canvas) return;
         ctx = canvas.getContext('2d');
 
+        // Initial sizing before drawing
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', () => {
+            requestAnimationFrame(resizeCanvas);
+        });
 
         // Prevent double-tap zoom
         window.addEventListener('dblclick', function(e) {
             e.preventDefault();
         }, { passive: false });
 
-        // Context menu disable on canvas (long press)
+        // Context menu disable on canvas
         canvas.addEventListener('contextmenu', function(e) {
             e.preventDefault();
         });
 
-        // Pointer Events for single-finger high precision drawing
+        // Pointer Events
         canvas.addEventListener('pointerdown', handlePointerDown);
         canvas.addEventListener('pointermove', handlePointerMove);
         canvas.addEventListener('pointerup', handlePointerUp);
         canvas.addEventListener('pointercancel', handlePointerUp);
+
+        isCanvasReady = true;
     }
 
     function resizeCanvas() {
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
-        // Maintain high resolution
-        canvas.width = rect.width * window.devicePixelRatio || rect.width;
-        canvas.height = rect.height * window.devicePixelRatio || rect.height;
-        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        if (rect.width === 0 || rect.height === 0) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+
+        ctx.scale(dpr, dpr);
         redrawAll();
     }
 
@@ -69,7 +78,7 @@ const CanvasManager = (function() {
     }
 
     function handlePointerDown(e) {
-        if (!isDrawerMode) return;
+        if (!isDrawerMode || !isCanvasReady) return;
         e.preventDefault();
 
         currentPointerId = e.pointerId;
@@ -94,7 +103,7 @@ const CanvasManager = (function() {
     }
 
     function handlePointerMove(e) {
-        if (!isDrawerMode || !isDrawing || e.pointerId !== currentPointerId) return;
+        if (!isDrawerMode || !isDrawing || e.pointerId !== currentPointerId || !isCanvasReady) return;
         e.preventDefault();
 
         const coords = getNormalizedCoords(e);
@@ -173,12 +182,12 @@ const CanvasManager = (function() {
 
     function addRemoteStroke(stroke) {
         strokes.push(stroke);
-        drawPoint(stroke);
+        requestAnimationFrame(() => drawPoint(stroke));
     }
 
     function rebuildStrokes(newStrokes) {
         strokes = newStrokes || [];
-        redrawAll();
+        requestAnimationFrame(() => redrawAll());
     }
 
     function clear() {

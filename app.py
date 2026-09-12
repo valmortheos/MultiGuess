@@ -1,190 +1,27 @@
-import random
-import string
-import socket
-import math
 import time
-import os
-import json
-import re
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
+
+from modules.config import APP_VERSION
+from modules.network import find_free_port, get_lan_ip
+from modules.words import pick_three_words
+from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
+from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
+from modules.game_state import RoomManager, normalize_room_code
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'multiguess-termux-secret-key-2025'
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 
-CACHE_FILE = "rooms_cache.json"
-
-# Word Bank (~150 Indonesian words across common categories)
-WORD_BANK = [
-    # Hewan (Animals)
-    "kucing", "anjing", "gajah", "harimau", "kelinci", "burung", "ikan", "jerapah",
-    "monyet", "ular", "kuda", "sapi", "kambing", "ayam", "bebek", "paus", "hiu",
-    "buaya", "singa", "panda", "komodo", "flamingo", "penguin", "kupu-kupu", "lebah",
-    "semut", "laba-laba", "katak", "kura-kura", "kepiting", "udang", "cumi-cumi",
-    # Benda (Objects)
-    "meja", "kursi", "lemari", "pintu", "jendela", "lampu", "cermin", "jam dinding",
-    "televisi", "kulkas", "kipas angin", "telepon", "komputer", "laptop", "sepatu",
-    "sandal", "topi", "baju", "celana", "kacamata", "tas", "payung", "dompet",
-    "sikat gigi", "handuk", "sabun", "piring", "sendok", "garpu", "gelas", "pisau",
-    "wajan", "kompor", "botol", "buku", "pensil", "pulpen", "penghapus", "penggaris",
-    "gunting", "gitar", "drum", "mobil", "sepeda", "motor", "pesawat", "kapal",
-    "kereta api", "helikopter", "roket", "bus", "truk",
-    # Makanan & Minuman (Food & Drink)
-    "nasi goreng", "bakso", "mie ayam", "sate", "rendang", "gado-gado", "soto",
-    "martabak", "pisang goreng", "es krim", "cokelat", "roti", "donat", "pizza",
-    "burger", "kopi", "teh", "susu", "jus alpukat", "kelapa muda",
-    # Tempat & Alam (Places & Nature)
-    "gunung", "pantai", "sungai", "laut", "hutan", "air terjun", "danau", "gua",
-    "awan", "matahari", "bulan", "bintang", "pelangi", "hujan", "salju", "rumah",
-    "sekolah", "rumah sakit", "pasar", "bandara", "stasiun", "taman", "candi", "istana",
-    # Profesi & Aktivitas (Professions & Activities)
-    "dokter", "guru", "polisi", "tentara", "koki", "pilot", "nelayan", "petani",
-    "pemadam kebakaran", "pelukis", "penyanyi", "memancing", "berenang", "membaca",
-    "tidur", "menari", "berkemah", "memasak", "berlari"
-]
-
-# Memory State
-rooms = {}
-
-def find_free_port(start=5000, end=9000):
-    for p in range(start, end):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(("0.0.0.0", p))
-                return p
-            except OSError:
-                continue
-    raise RuntimeError("No free port found")
-
-def get_lan_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = "127.0.0.1"
-    finally:
-        s.close()
-    return ip
-
-def normalize_room_code(code_str):
-    if not code_str:
-        return ""
-    # Strip whitespace, uppercase, and retain only A-Z
-    cleaned = re.sub(r'[^A-Z]', '', str(code_str).strip().upper())
-    return cleaned
-
-def generate_room_code():
-    while True:
-        code = ''.join(random.choices(string.ascii_uppercase, k=4))
-        if code not in rooms:
-            return code
-
-def levenshtein_distance(s1, s2):
-    s1 = s1.lower().strip()
-    s2 = s2.lower().strip()
-    if len(s1) < len(s2):
-        return levenshtein_distance(s2, s1)
-    if len(s2) == 0:
-        return len(s1)
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
-        current_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            insertions = previous_row[j + 1] + 1
-            deletions = current_row[j] + 1
-            substitutions = previous_row[j] + (c1 != c2)
-            current_row.append(min(insertions, deletions, substitutions))
-        previous_row = current_row
-    return previous_row[-1]
-
-def mask_word(word):
-    masked = []
-    for char in word:
-        if char == ' ':
-            masked.append(' ')
-        else:
-            masked.append('_')
-    return ' '.join(masked)
-
-def save_rooms_cache():
-    try:
-        cache_data = {"rooms": {}}
-        for code, r in rooms.items():
-            host_name = r['players'].get(r['host_sid'], {}).get('name', 'Unknown') if r.get('host_sid') else 'Unknown'
-            player_names = [p['name'] for p in r['players'].values()]
-            scores = {p['name']: p['score'] for p in r['players'].values()}
-            cache_data["rooms"][code] = {
-                "created_at": r.get('created_at', int(time.time())),
-                "host": host_name,
-                "players": player_names,
-                "status": r['state'].lower(),
-                "round": r['current_round'],
-                "current_word": r['current_word'],
-                "scores": scores
-            }
-        tmp_file = f"{CACHE_FILE}.tmp"
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            json.dump(cache_data, f, indent=2)
-        os.replace(tmp_file, CACHE_FILE)
-    except Exception as e:
-        print(f"[WARN] Failed to write rooms_cache.json: {e}")
-
-def load_and_clear_stale_cache():
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            cached_rooms = data.get("rooms", {})
-            if cached_rooms:
-                print(f"Found {len(cached_rooms)} stale rooms from previous session (cleared):")
-                for code, info in cached_rooms.items():
-                    print(f"  - Room {code} (Host: {info.get('host')}, Players: {len(info.get('players', []))})")
-            os.remove(CACHE_FILE)
-        except Exception as e:
-            print(f"[WARN] Error reading stale rooms_cache.json: {e}")
-
-def get_room_data(room_code):
-    room = rooms.get(room_code)
-    if not room:
-        return None
-    players_data = []
-    for sid, p in room['players'].items():
-        players_data.append({
-            'sid': sid,
-            'name': p['name'],
-            'score': p['score'],
-            'is_host': (sid == room['host_sid']),
-            'has_guessed': p['has_guessed']
-        })
-    players_data.sort(key=lambda x: x['score'], reverse=True)
-
-    current_drawer_name = ""
-    if room['current_drawer'] and room['current_drawer'] in room['players']:
-        current_drawer_name = room['players'][room['current_drawer']]['name']
-
-    return {
-        'room_code': room_code,
-        'state': room['state'],
-        'settings': room['settings'],
-        'host_sid': room['host_sid'],
-        'current_round': room['current_round'],
-        'total_rounds': room['settings']['total_rounds'],
-        'current_drawer': room['current_drawer'],
-        'current_drawer_name': current_drawer_name,
-        'masked_word': mask_word(room['current_word']) if room['current_word'] else '',
-        'time_remaining': room['time_remaining'],
-        'players': players_data
-    }
+room_mgr = RoomManager()
 
 def broadcast_room_update(room_code):
-    data = get_room_data(room_code)
+    data = room_mgr.get_room_data(room_code)
     if data:
         socketio.emit('room_updated', data, to=room_code)
 
 def start_next_turn(room_code):
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if not room:
         return
 
@@ -194,7 +31,7 @@ def start_next_turn(room_code):
         room['state'] = 'LOBBY'
         socketio.emit('system_message', {'text': 'Pemain kurang dari 2. Permainan kembali ke lobby.'}, to=room_code)
         broadcast_room_update(room_code)
-        save_rooms_cache()
+        room_mgr.save_cache()
         return
 
     if room['drawer_index'] >= len(room['drawer_order']):
@@ -203,12 +40,12 @@ def start_next_turn(room_code):
 
     if room['current_round'] > room['settings']['total_rounds']:
         room['state'] = 'GAME_OVER'
-        leaderboard = get_room_data(room_code)['players']
+        leaderboard = room_mgr.get_room_data(room_code)['players']
         socketio.emit('game_over', {
             'leaderboard': leaderboard
         }, to=room_code)
         broadcast_room_update(room_code)
-        save_rooms_cache()
+        room_mgr.save_cache()
         return
 
     drawer_sid = room['drawer_order'][room['drawer_index']]
@@ -227,11 +64,11 @@ def start_next_turn(room_code):
     for sid in room['players']:
         room['players'][sid]['has_guessed'] = False
 
-    room['word_options'] = random.sample(WORD_BANK, 3)
+    room['word_options'] = pick_three_words()
 
     broadcast_room_update(room_code)
     socketio.emit('clear_canvas', to=room_code)
-    save_rooms_cache()
+    room_mgr.save_cache()
 
     socketio.emit('choose_word_prompt', {
         'words': room['word_options'],
@@ -242,39 +79,59 @@ def start_next_turn(room_code):
 
 def word_select_timer_task(room_code, drawer_sid):
     time.sleep(15)
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if room and room['state'] == 'SELECTING_WORD' and room['current_drawer'] == drawer_sid:
         chosen = room['word_options'][0]
         on_word_chosen(room_code, drawer_sid, chosen)
 
 def on_word_chosen(room_code, drawer_sid, chosen_word):
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if not room or room['state'] != 'SELECTING_WORD' or room['current_drawer'] != drawer_sid:
         return
 
     room['current_word'] = chosen_word
-    room['state'] = 'PLAYING'
-    room['time_remaining'] = room['settings']['timer_duration']
+    room['state'] = 'COUNTDOWN'
 
     broadcast_room_update(room_code)
-    save_rooms_cache()
+    room_mgr.save_cache()
 
     socketio.emit('your_word', {'word': chosen_word}, to=drawer_sid)
     socketio.emit('system_message', {
         'text': f"Ronde {room['current_round']}: {room['players'][drawer_sid]['name']} sedang menggambar!"
     }, to=room_code)
 
+    socketio.emit('countdown_start', {'duration': 3}, to=room_code)
+    socketio.start_background_task(target=countdown_timer_task, room_code=room_code)
+
+def countdown_timer_task(room_code):
+    time.sleep(3)
+    room = room_mgr.get_room(room_code)
+    if not room or room['state'] != 'COUNTDOWN':
+        return
+
+    room['state'] = 'PLAYING'
+    room['time_remaining'] = room['settings']['timer_duration']
+
+    broadcast_room_update(room_code)
+
+    socketio.emit('round_started', {
+        'drawer_sid': room['current_drawer'],
+        'word_length': len(room['current_word']),
+        'round': room['current_round'],
+        'time_left': room['time_remaining']
+    }, to=room_code)
+
     room['timer_running'] = True
     socketio.start_background_task(target=turn_timer_task, room_code=room_code)
 
 def turn_timer_task(room_code):
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if not room:
         return
 
     while room and room.get('timer_running') and room['state'] == 'PLAYING':
         time.sleep(1)
-        room = rooms.get(room_code)
+        room = room_mgr.get_room(room_code)
         if not room or not room.get('timer_running') or room['state'] != 'PLAYING':
             break
 
@@ -290,16 +147,15 @@ def turn_timer_task(room_code):
             break
 
 def end_turn(room_code):
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if not room:
         return
 
     room['state'] = 'ROUND_ENDED'
 
     drawer_sid = room['current_drawer']
-    drawer_points = 0
     if drawer_sid in room['players']:
-        drawer_points = 20 * room['correct_guessers_count']
+        drawer_points = calculate_drawer_points(room['correct_guessers_count'])
         room['players'][drawer_sid]['score'] += drawer_points
         room['turn_scores'][drawer_sid] = drawer_points
 
@@ -320,13 +176,13 @@ def end_turn(room_code):
     }, to=room_code)
 
     broadcast_room_update(room_code)
-    save_rooms_cache()
+    room_mgr.save_cache()
 
     socketio.start_background_task(target=delay_next_turn_task, room_code=room_code)
 
 def delay_next_turn_task(room_code):
     time.sleep(5)
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if room and room['state'] == 'ROUND_ENDED':
         room['drawer_index'] += 1
         start_next_turn(room_code)
@@ -343,42 +199,10 @@ def handle_create_room(data):
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
         return
 
-    room_code = generate_room_code()
     sid = request.sid
-
-    rooms[room_code] = {
-        'code': room_code,
-        'created_at': int(time.time()),
-        'host_sid': sid,
-        'players': {
-            sid: {
-                'sid': sid,
-                'name': player_name,
-                'score': 0,
-                'has_guessed': False
-            }
-        },
-        'settings': {
-            'timer_duration': 75,
-            'total_rounds': 3
-        },
-        'state': 'LOBBY',
-        'current_round': 1,
-        'drawer_order': [],
-        'drawer_index': 0,
-        'current_drawer': None,
-        'current_word': '',
-        'word_options': [],
-        'strokes': [],
-        'time_remaining': 0,
-        'timer_running': False,
-        'correct_guessers_count': 0,
-        'turn_scores': {}
-    }
+    room_code = room_mgr.create_room(sid, player_name)
 
     join_room(room_code)
-    save_rooms_cache()
-
     emit('room_joined', {'room_code': room_code, 'is_host': True})
     broadcast_room_update(room_code)
 
@@ -397,7 +221,7 @@ def handle_join_room(data):
         emit('join_error', {'reason': 'invalid_code', 'code': raw_code})
         return
 
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
     if not room:
         emit('join_error', {'reason': 'not_found', 'code': room_code})
         return
@@ -414,29 +238,37 @@ def handle_join_room(data):
         'has_guessed': False
     }
 
-    save_rooms_cache()
+    room_mgr.save_cache()
 
     emit('room_joined', {'room_code': room_code, 'is_host': False})
     socketio.emit('system_message', {'text': f"{player_name} bergabung ke room."}, to=room_code)
     broadcast_room_update(room_code)
 
+@socketio.on('canvas_ready')
+def handle_canvas_ready(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    room = room_mgr.get_room(room_code)
+    if room and room['strokes']:
+        emit('strokes_rebuild', room['strokes'], to=sid)
+
 @socketio.on('cancel_room')
 def handle_cancel_room(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if room and room['host_sid'] == sid and len(room['players']) <= 1:
         leave_room(room_code)
-        del rooms[room_code]
-        save_rooms_cache()
+        del room_mgr.rooms[room_code]
+        room_mgr.save_cache()
         emit('room_cancelled', {'room_code': room_code})
 
 @socketio.on('update_settings')
 def handle_update_settings(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if not room or room['host_sid'] != sid or room['state'] != 'LOBBY':
         return
@@ -450,13 +282,13 @@ def handle_update_settings(data):
         room['settings']['total_rounds'] = total_rounds
 
     broadcast_room_update(room_code)
-    save_rooms_cache()
+    room_mgr.save_cache()
 
 @socketio.on('start_game')
 def handle_start_game(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if not room or room['host_sid'] != sid:
         return
@@ -466,6 +298,7 @@ def handle_start_game(data):
         return
 
     p_sids = list(room['players'].keys())
+    import random
     random.shuffle(p_sids)
     room['drawer_order'] = p_sids
     room['drawer_index'] = 0
@@ -481,7 +314,7 @@ def handle_select_word(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
     word = data.get('word')
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if room and room['state'] == 'SELECTING_WORD' and room['current_drawer'] == sid:
         if word in room['word_options']:
@@ -492,7 +325,7 @@ def handle_draw_stroke(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
     stroke = data.get('stroke')
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
         room['strokes'].append(stroke)
@@ -502,7 +335,7 @@ def handle_draw_stroke(data):
 def handle_clear_canvas(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
         room['strokes'] = []
@@ -512,7 +345,7 @@ def handle_clear_canvas(data):
 def handle_undo_stroke(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
         if room['strokes']:
@@ -527,7 +360,7 @@ def handle_send_message(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
     text = data.get('text', '').strip()
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if not room or not text:
         return
@@ -567,11 +400,7 @@ def handle_send_message(data):
             room['correct_guessers_count'] += 1
             order = room['correct_guessers_count']
 
-            time_rem = max(0, room['time_remaining'])
-            points = min(100, math.floor(50 + (time_rem * 0.6)))
-            points = math.floor(points * (0.8 ** (order - 1)))
-            points = max(10, points)
-
+            points = calculate_guesser_points(room['time_remaining'], order)
             player['score'] += points
             room['turn_scores'][sid] = points
 
@@ -582,12 +411,11 @@ def handle_send_message(data):
             }, to=room_code)
 
             broadcast_room_update(room_code)
-            save_rooms_cache()
+            room_mgr.save_cache()
             return
 
         else:
-            dist = levenshtein_distance(guess, secret)
-            if dist <= 2 and len(secret) >= 3:
+            if is_similar_guess(guess, secret):
                 emit('hampir_benar', {'message': 'Hampir benar!'}, to=sid)
 
             socketio.emit('chat_message', {
@@ -607,7 +435,7 @@ def handle_send_message(data):
 def handle_play_again(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if not room or room['host_sid'] != sid:
         return
@@ -627,13 +455,13 @@ def handle_play_again(data):
     socketio.emit('clear_canvas', to=room_code)
     socketio.emit('system_message', {'text': 'Host telah mereset permainan ke lobby.'}, to=room_code)
     broadcast_room_update(room_code)
-    save_rooms_cache()
+    room_mgr.save_cache()
 
 @socketio.on('leave_room')
 def handle_leave_room(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
-    room = rooms.get(room_code)
+    room = room_mgr.get_room(room_code)
 
     if room and sid in room['players']:
         player_name = room['players'][sid]['name']
@@ -643,7 +471,7 @@ def handle_leave_room(data):
         socketio.emit('system_message', {'text': f"{player_name} meninggalkan room."}, to=room_code)
 
         if len(room['players']) == 0:
-            del rooms[room_code]
+            del room_mgr.rooms[room_code]
         else:
             if room['host_sid'] == sid:
                 room['host_sid'] = list(room['players'].keys())[0]
@@ -655,13 +483,13 @@ def handle_leave_room(data):
             else:
                 broadcast_room_update(room_code)
 
-        save_rooms_cache()
+        room_mgr.save_cache()
         emit('left_room_success', to=sid)
 
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
-    for room_code, room in list(rooms.items()):
+    for room_code, room in list(room_mgr.rooms.items()):
         if sid in room['players']:
             player_name = room['players'][sid]['name']
             del room['players'][sid]
@@ -669,7 +497,7 @@ def handle_disconnect():
             socketio.emit('system_message', {'text': f"{player_name} terputus."}, to=room_code)
 
             if len(room['players']) == 0:
-                del rooms[room_code]
+                del room_mgr.rooms[room_code]
             else:
                 if room['host_sid'] == sid:
                     room['host_sid'] = list(room['players'].keys())[0]
@@ -681,19 +509,23 @@ def handle_disconnect():
                 else:
                     broadcast_room_update(room_code)
 
-            save_rooms_cache()
+            room_mgr.save_cache()
 
 if __name__ == '__main__':
-    load_and_clear_stale_cache()
+    init_cache()
+    stale_index = persistent_load("rooms_index")
+    if stale_index:
+        persistent_save("rooms_index", {})
 
     port = find_free_port()
     ip = get_lan_ip()
 
     print("============================================")
-    print("  MultiGuess server is running!")
+    print(f"  MultiGuess server v{APP_VERSION}")
     print(f"  Local:   http://127.0.0.1:{port}")
     print(f"  Network: http://{ip}:{port}")
     print("  Share this URL with players on the same WiFi")
+    print(f"  {get_cache_summary()}")
     print("============================================")
 
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
