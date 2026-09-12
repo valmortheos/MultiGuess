@@ -1,7 +1,8 @@
 // App Global State & Socket Initialization
 // [v1.0.5-OLD] const APP_VERSION = "1.0.5";
 // [v2.0.2-OLD] const APP_VERSION = "2.0.2";
-const APP_VERSION = "2.0.3";
+// [v2.0.3-OLD] const APP_VERSION = "2.0.3";
+const APP_VERSION = "2.0.4";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const timerDisplay = document.getElementById('timer-display');
     const btnLeave = document.getElementById('btn-leave');
     const btnBackLobby = document.getElementById('btn-back-lobby');
+    const btnLobbyBack = document.getElementById('btn-lobby-back');
 
     const turnStatusText = document.getElementById('turn-status-text');
     const wordMaskDisplay = document.getElementById('word-mask-display');
@@ -176,9 +178,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
-    toggleHaptic.addEventListener('change', function() {
-        setHapticEnabled(this.checked);
-    });
+    if (toggleHaptic) {
+        toggleHaptic.addEventListener('change', function() {
+            setHapticEnabled(this.checked);
+        });
+    }
 
     async function savePlayerName() {
         const name = inputPlayerName.value.trim();
@@ -234,11 +238,18 @@ document.addEventListener('DOMContentLoaded', async function() {
         window.AppSocket.emit('join_room', { player_name: name, room_code: rawCode });
     });
 
-    // Back / Cancel / Leave Header Logic
+    // Back / Cancel / Leave Header & Lobby Logic
     btnBackLobby.addEventListener('click', function() {
         vibrate(10);
         handleLeaveOrBackAction();
     });
+
+    if (btnLobbyBack) {
+        btnLobbyBack.addEventListener('click', function() {
+            vibrate(10);
+            handleLeaveOrBackAction();
+        });
+    }
 
     btnLeave.addEventListener('click', function() {
         vibrate(10);

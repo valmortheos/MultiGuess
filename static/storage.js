@@ -69,7 +69,12 @@ const DB = {
         if (!this.db) return;
         try {
             const tx = this.db.transaction(store, 'readwrite');
-            tx.objectStore(store).put(value, key);
+            const objectStore = tx.objectStore(store);
+            if (objectStore.keyPath) {
+                objectStore.put(value);
+            } else {
+                objectStore.put(value, key);
+            }
         } catch (err) {
             console.warn("IndexedDB set failed", err);
         }
@@ -101,6 +106,20 @@ const DB = {
 };
 
 let hapticEnabled = true;
+
+// Migration: Reset settings version to v2.0.4 to ensure haptic & sound are default ON
+(async function migrateSettings() {
+    try {
+        const ver = await DB.get('settings', 'settings_version');
+        if (ver !== '2.0.4') {
+            await DB.set('settings', 'haptic_enabled', 'true');
+            await DB.set('settings', 'sound_effects', 'true');
+            await DB.set('settings', 'settings_version', '2.0.4');
+        }
+    } catch (e) {
+        console.warn("Settings migration warning:", e);
+    }
+})();
 
 function setHapticEnabled(enabled) {
     hapticEnabled = enabled;

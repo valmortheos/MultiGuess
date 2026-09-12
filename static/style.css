@@ -670,6 +670,18 @@ input[type="text"]:focus {
     margin-bottom: 4px;
 }
 
+/* Modal Header Nav for Lobby (v2.0.4) */
+.modal-header-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.modal-header-nav h2 {
+    margin-bottom: 0;
+}
+
 .modal-subtitle {
     font-size: 13px;
     color: #6b7280;

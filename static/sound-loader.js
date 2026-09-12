@@ -47,7 +47,13 @@ const SoundLoader = (function() {
             const manifest = await manifestRes.json();
 
             const savedMeta = await DB.get('sound_meta', 'version');
-            if (savedMeta && savedMeta.value === manifest.version) {
+            const localVersion = savedMeta ? (savedMeta.value || savedMeta) : null;
+            const remoteVersion = manifest.version;
+            const isCached = !!(localVersion && localVersion === remoteVersion);
+
+            console.log('[sound-loader] cached=', isCached, 'local=', localVersion, 'remote=', remoteVersion);
+
+            if (isCached) {
                 console.log('[SoundLoader] Sound cache up to date (version match). Skipping preloader.');
                 hideLoader();
                 return;
