@@ -2,20 +2,37 @@
 // [v1.0.5-OLD] const APP_VERSION = "1.0.5";
 // [v2.0.2-OLD] const APP_VERSION = "2.0.2";
 // [v2.0.3-OLD] const APP_VERSION = "2.0.3";
-const APP_VERSION = "2.0.4";
+// [v2.0.4-OLD] const APP_VERSION = "2.0.4";
+const APP_VERSION = "2.0.5";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
 window.currentSid = null;
 window.roomPlayerCount = 0;
 
-document.addEventListener('DOMContentLoaded', async function() {
-    // Initialize Client IndexedDB Storage
-    await DB.init();
+// Global Error Handlers (v2.0.5)
+window.addEventListener('error', e => console.error('[global-error]', e.message, e.filename, e.lineno, e.error));
+window.addEventListener('unhandledrejection', e => console.error('[promise-reject]', e.reason));
 
-    // Sound Preloader & Player Initialization
-    SoundPlayer.init();
-    await SoundLoader.loadSounds();
+document.addEventListener('DOMContentLoaded', async function() {
+    // Initialize Client IndexedDB Storage non-blockingly
+    try {
+        await DB.init();
+    } catch (err) {
+        console.warn('[DB] Storage init warning:', err);
+    }
+
+    // Sound Player Initialization
+    try {
+        SoundPlayer.init();
+    } catch (err) {
+        console.warn('[SoundPlayer] Init warning:', err);
+    }
+
+    // Start Sound Loader non-blockingly (do NOT await before attaching socket/UI handlers)
+    SoundLoader.loadSounds().catch(err => {
+        console.warn('[SoundLoader] Non-blocking load exception:', err);
+    });
 
     // Canvas Init
     CanvasManager.init('game-canvas');
@@ -212,30 +229,59 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     });
 
+    // Safe Emit Helper Function (v2.0.5)
+    function safeEmit(event, data) {
+        const socket = window.AppSocket;
+        if (socket && socket.connected) {
+            console.log(`[emit] ${event}`, data, { connected: true });
+            socket.emit(event, data);
+        } else if (socket) {
+            console.warn(`[socket] not connected, queueing ${event}`, data);
+            showToast('Menghubungkan ke server...');
+            socket.once('connect', () => {
+                console.log(`[emit-queued] ${event}`, data, { connected: true });
+                socket.emit(event, data);
+            });
+        } else {
+            console.error('[socket] AppSocket instance not found');
+            showToast('Gagal terhubung ke server Socket.IO');
+        }
+    }
+
     // Event Handlers - Room Creation & Joining
     btnCreateRoom.addEventListener('click', async function() {
         vibrate(10);
-        const name = await savePlayerName();
-        if (!name) {
-            showToast('Masukkan nama kamu terlebih dahulu!');
-            return;
+        try {
+            const name = await savePlayerName();
+            if (!name) {
+                showToast('Masukkan nama kamu terlebih dahulu!');
+                return;
+            }
+            safeEmit('create_room', { player_name: name });
+        } catch (err) {
+            console.error('[btnCreateRoom] error:', err);
+            showToast('Terjadi kesalahan saat membuat room.');
         }
-        window.AppSocket.emit('create_room', { player_name: name });
     });
 
     btnJoinRoom.addEventListener('click', async function() {
         vibrate(10);
-        const name = await savePlayerName();
-        const rawCode = inputRoomCode.value.trim();
-        if (!name) {
-            showToast('Masukkan nama kamu terlebih dahulu!');
-            return;
+        try {
+            const name = await savePlayerName();
+            const rawCode = inputRoomCode.value.trim();
+            if (!name) {
+                showToast('Masukkan nama kamu terlebih dahulu!');
+                return;
+            }
+            if (!rawCode) {
+                showToast('Masukkan kode room terlebih dahulu!');
+                return;
+            }
+            safeEmit('join_room', { player_name: name, room_code: rawCode });
+        } catch (err) {
+            console.error('[btnJoinRoom] error:', err);
+            showToast('Terjadi kesalahan saat join room.');
         }
-        if (!rawCode) {
-            showToast('Masukkan kode room terlebih dahulu!');
-            return;
-        }
-        window.AppSocket.emit('join_room', { player_name: name, room_code: rawCode });
     });
 
     // Back / Cancel / Leave Header & Lobby Logic

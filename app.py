@@ -344,6 +344,7 @@ def dev_bot_status():
 @socketio.on('create_room')
 def handle_create_room(data):
     player_name = data.get('player_name', '').strip()
+    print(f'[create_room] sid={request.sid} name={player_name}')
     if not player_name:
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
         return
@@ -367,6 +368,7 @@ def handle_join_room(data):
     raw_code = data.get('room_code', '')
     room_code = normalize_room_code(raw_code)
     sid = request.sid
+    print(f'[join_room] sid={sid} name={player_name} code={room_code}')
 
     if not player_name:
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
