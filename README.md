@@ -1,8 +1,12 @@
-<!-- [v1.0.4-OLD] # MultiGuess v1.0.4 - Real-time Multiplayer Draw & Guess Web App -->
-# MultiGuess v1.0.5 - Real-time Multiplayer Draw & Guess Web App
+<!-- [v1.0.5-OLD] # MultiGuess v1.0.5 - Real-time Multiplayer Draw & Guess Web App -->
+# MultiGuess v2.0.2 - Real-time Multiplayer Draw & Guess Web App
 
-<!-- [v1.0.4-OLD] **Current version: 1.0.4** -->
-**Current version: 1.0.5**
+<!-- [v1.0.5-OLD] **Current version: 1.0.5** -->
+**Current version: 2.0.2**
+
+## 🤖 Untuk AI Agent
+- Silakan lihat [AGENTS.md](AGENTS.md) untuk aturan pengubahan kode dan proteksi folder.
+- Folder `/HistoryRepo` adalah **READ-ONLY** dan terproteksi. Dilarang memodifikasi, menghapus, atau mengubah file di dalam `/HistoryRepo`.
 
 MultiGuess adalah aplikasi web multiplayer real-time (game Tebak Gambar) yang dirancang khusus untuk berjalan dengan ringan di server lokal (Flask + Flask-SocketIO) di **Termux Android**. Pemain cukup menghubungkan HP mereka ke jaringan Wi-Fi LAN yang sama dan membuka URL aplikasi dari browser HP masing-masing.
 
@@ -10,10 +14,24 @@ Aplikasi ini dikembangkan dengan pendekatan **Mobile-First** dan memberikan **Na
 
 ---
 
-<!-- [v1.0.4-OLD] ## 🚀 Fitur & Peningkatan Utama (v1.0.4) -->
-## 🚀 Fitur & Peningkatan Utama (v1.0.5)
+<!-- [v1.0.5-OLD] ## 🚀 Fitur & Peningkatan Utama (v1.0.5) -->
+## 🚀 Fitur & Peningkatan Utama (v2.0.2)
 
-1. **Native App Feel & Haptic Feedback**:
+1. **Moderasi Kata Kasar & Censor Overlay (v2.0.2 Baru)**:
+   - Filter profanity Bahasa Indonesia, Sunda, Jawa, dan Inggris dengan normalisasi anti-bypass (leetspeak, symbol stripping, repeat collapsing, word boundary).
+   - Penolakan otomatis nama pemain yang mengandung kata kasar.
+   - Sensor otomatis chat (`"[pesan disensor]"`), broadcast sound `Censored`, dan overlay melayang menampilkan teks asli pengirim di atas canvas.
+   - Logging otomatis moderasi di `cache/persistent/moderation_log.json`.
+
+2. **Sound Routing & Vibrate API Fix (v2.0.2 Baru)**:
+   - Routing suara presisi per-event: Targeted (`CorrectAnswer`, `WrongAnswer`, `FailedRound`, `YourTurn`) & Broadcast (`WinnerScore`, `Censored`, `Random`, `TimeRemaining` ≤20s).
+   - Synchronized Vibrate Feedback API di semua device client dengan setting haptic per-device yang disimpan di IndexedDB.
+
+3. **Tombol Reaction & Overlay Melayang (v2.0.2 Baru)**:
+   - 3 tombol reaction bulat minimalis berangka (1, 2, 3) tanpa emoji dengan 3 sound acak persisten per user.
+   - Non-interactive floating overlay melayang di atas canvas saat sound `Random` atau `Censored` diputar.
+
+4. **Native App Feel & Haptic Feedback**:
    - Layout fixed full-viewport (`100dvh`, `overflow: hidden`, safe-area inset)
    - Bottom sheet modal, `:active` button feedback (scale 0.97)
    - `navigator.vibrate()` Haptic Feedback untuk tombol, tebakan benar, countdown, dan akhir game
@@ -88,7 +106,7 @@ Setelah server berjalan, console akan menampilkan banner informasi port, URL LAN
 
 ```
 ============================================
-  MultiGuess server v1.0.5
+  MultiGuess server v2.0.2
   Local:   http://127.0.0.1:5231
   Network: http://192.168.1.42:5231
   Share this URL with players on the same WiFi

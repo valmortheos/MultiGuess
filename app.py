@@ -10,6 +10,7 @@ from modules.scoring import is_similar_guess, calculate_guesser_points, calculat
 from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
 from modules.game_state import RoomManager, normalize_room_code
 from modules.sound_manifest import get_sound_manifest, SOUND_DIR
+from modules.profanity import contains_profanity, is_profane, log_moderation
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'multiguess-termux-secret-key-2025'
@@ -17,10 +18,22 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 
 room_mgr = RoomManager()
 
+# User Reaction Cooldown Tracker: sid -> last_reaction_timestamp
+reaction_cooldowns = {}
+
 def broadcast_room_update(room_code):
     data = room_mgr.get_room_data(room_code)
     if data:
         socketio.emit('room_updated', data, to=room_code)
+
+def emit_play_sound(room_code, payload, target_sid=None, target_sids=None):
+    if target_sid:
+        socketio.emit('play_sound', payload, to=target_sid)
+    elif target_sids:
+        for sid in target_sids:
+            socketio.emit('play_sound', payload, to=sid)
+    else:
+        socketio.emit('play_sound', payload, to=room_code)
 
 def start_next_turn(room_code):
     room = room_mgr.get_room(room_code)
@@ -28,6 +41,7 @@ def start_next_turn(room_code):
         return
 
     room['timer_running'] = False
+    room['has_played_time_remaining'] = False
 
     if len(room['players']) < 2:
         room['state'] = 'LOBBY'
@@ -46,6 +60,7 @@ def start_next_turn(room_code):
         socketio.emit('game_over', {
             'leaderboard': leaderboard
         }, to=room_code)
+        emit_play_sound(room_code, {'type': 'WinnerScore'})
         broadcast_room_update(room_code)
         room_mgr.save_cache()
         return
@@ -123,6 +138,8 @@ def countdown_timer_task(room_code):
         'time_left': room['time_remaining']
     }, to=room_code)
 
+    emit_play_sound(room_code, {'type': 'YourTurn'}, target_sid=room['current_drawer'])
+
     room['timer_running'] = True
     socketio.start_background_task(target=turn_timer_task, room_code=room_code)
 
@@ -139,6 +156,10 @@ def turn_timer_task(room_code):
 
         room['time_remaining'] -= 1
         socketio.emit('timer_tick', {'time_remaining': room['time_remaining']}, to=room_code)
+
+        if room['time_remaining'] <= 20 and not room.get('has_played_time_remaining', False):
+            room['has_played_time_remaining'] = True
+            emit_play_sound(room_code, {'type': 'TimeRemaining'})
 
         non_drawers = [sid for sid in room['players'] if sid != room['current_drawer']]
         all_guessed = len(non_drawers) > 0 and all(room['players'][sid]['has_guessed'] for sid in non_drawers)
@@ -177,6 +198,15 @@ def end_turn(room_code):
         'summary': turn_summary
     }, to=room_code)
 
+    # FailedRound sound routing:
+    # Drawer never hears FailedRound.
+    # non_drawer_players who haven't guessed correctly hear FailedRound.
+    non_drawers = [sid for sid in room['players'] if sid != drawer_sid]
+    failed_guessers = [sid for sid in non_drawers if not room['players'][sid]['has_guessed']]
+
+    if failed_guessers:
+        emit_play_sound(room_code, {'type': 'FailedRound'}, target_sids=failed_guessers)
+
     broadcast_room_update(room_code)
     room_mgr.save_cache()
 
@@ -210,6 +240,12 @@ def handle_create_room(data):
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
         return
 
+    has_profanity, matched = contains_profanity(player_name)
+    if has_profanity:
+        log_moderation('reject_player_name', player_name, player_name, matched)
+        emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
+        return
+
     sid = request.sid
     room_code = room_mgr.create_room(sid, player_name)
 
@@ -226,6 +262,12 @@ def handle_join_room(data):
 
     if not player_name:
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
+        return
+
+    has_profanity, matched = contains_profanity(player_name)
+    if has_profanity:
+        log_moderation('reject_player_name', player_name, player_name, matched, room_code)
+        emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
         return
 
     if not room_code:
@@ -380,6 +422,26 @@ def handle_send_message(data):
     if not player:
         return
 
+    # Profanity moderation check
+    has_profanity, matched = contains_profanity(text)
+    if has_profanity:
+        log_moderation('censored_chat', player['name'], text, matched, room_code)
+        display_text = "[pesan disensor]"
+        socketio.emit('chat_message', {
+            'sender': player['name'],
+            'text': display_text,
+            'type': 'censored'
+        }, to=room_code)
+
+        # Broadcast Censored sound & overlay event to room
+        emit_play_sound(room_code, {
+            'type': 'Censored',
+            'username': player['name'],
+            'sender_sid': sid,
+            'extra': {'original_text': text}
+        })
+        return
+
     if room['state'] == 'PLAYING':
         if sid == room['current_drawer']:
             socketio.emit('chat_message', {
@@ -398,6 +460,12 @@ def handle_send_message(data):
                     'text': display_text,
                     'type': 'censored'
                 }, to=room_code)
+                emit_play_sound(room_code, {
+                    'type': 'Censored',
+                    'username': player['name'],
+                    'sender_sid': sid,
+                    'extra': {'original_text': text}
+                })
             else:
                 display_text = text
                 socketio.emit('chat_message', {
@@ -425,6 +493,8 @@ def handle_send_message(data):
                 'type': 'correct'
             }, to=room_code)
 
+            emit_play_sound(room_code, {'type': 'CorrectAnswer'}, target_sid=sid)
+
             broadcast_room_update(room_code)
             room_mgr.save_cache()
             return
@@ -432,6 +502,8 @@ def handle_send_message(data):
         else:
             if is_similar_guess(guess, secret):
                 emit('hampir_benar', {'message': 'Hampir benar!'}, to=sid)
+
+            emit_play_sound(room_code, {'type': 'WrongAnswer'}, target_sid=sid)
 
             socketio.emit('chat_message', {
                 'sender': player['name'],
@@ -445,6 +517,39 @@ def handle_send_message(data):
             'text': text,
             'type': 'chat'
         }, to=room_code)
+
+@socketio.on('trigger_reaction')
+def handle_trigger_reaction(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    room = room_mgr.get_room(room_code)
+
+    if not room or sid not in room['players']:
+        return
+
+    # Cooldown check: 3 seconds per user
+    now = time.time()
+    last = reaction_cooldowns.get(sid, 0)
+    if now - last < 3.0:
+        return
+    reaction_cooldowns[sid] = now
+
+    player = room['players'][sid]
+    sound_path = data.get('soundPath')
+    slot = data.get('slot', 1)
+    user_id = data.get('userId')
+
+    if not sound_path:
+        return
+
+    emit_play_sound(room_code, {
+        'type': 'Random',
+        'username': player['name'],
+        'userId': user_id,
+        'soundPath': sound_path,
+        'slot': slot,
+        'sender_sid': sid
+    })
 
 @socketio.on('play_again')
 def handle_play_again(data):
@@ -462,6 +567,7 @@ def handle_play_again(data):
     room['current_word'] = ''
     room['strokes'] = []
     room['timer_running'] = False
+    room['has_played_time_remaining'] = False
 
     for p_sid in room['players']:
         room['players'][p_sid]['score'] = 0
@@ -504,6 +610,9 @@ def handle_leave_room(data):
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
+    if sid in reaction_cooldowns:
+        del reaction_cooldowns[sid]
+
     for room_code, room in list(room_mgr.rooms.items()):
         if sid in room['players']:
             player_name = room['players'][sid]['name']

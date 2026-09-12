@@ -1,13 +1,11 @@
 // App Global State & Socket Initialization
-// [v1.0.4-OLD] const APP_VERSION = "1.0.4";
-const APP_VERSION = "1.0.5";
+// [v1.0.5-OLD] const APP_VERSION = "1.0.5";
+const APP_VERSION = "2.0.2";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
 window.currentSid = null;
 window.roomPlayerCount = 0;
-
-let hasPlayedTimeRemainingSound = false;
 
 document.addEventListener('DOMContentLoaded', async function() {
     // Initialize Client IndexedDB Storage
@@ -55,6 +53,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     const chatInput = document.getElementById('chat-input');
     const toastHampirBenar = document.getElementById('toast-hampir-benar');
 
+    const floatingOverlayContainer = document.getElementById('floating-overlay-container');
+    const reactionBtns = document.querySelectorAll('.btn-reaction');
+
     // Countdown Overlay
     const countdownOverlay = document.getElementById('countdown-overlay');
     const countdownNumber = document.getElementById('countdown-number');
@@ -69,6 +70,40 @@ document.addEventListener('DOMContentLoaded', async function() {
         setTimeout(() => {
             appToast.classList.add('hidden');
         }, duration);
+    }
+
+    // Floating Overlay Function (v2.0.2)
+    function showFloatingOverlay({ username, text, variant, slot }) {
+        if (!floatingOverlayContainer) return;
+
+        const card = document.createElement('div');
+        card.className = `floating-overlay ${variant || 'random'}`;
+
+        if (variant === 'censored') {
+            const badge = document.createElement('span');
+            badge.className = 'slot-badge';
+            badge.textContent = '!';
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = `${username}: ${text}`;
+            card.appendChild(badge);
+            card.appendChild(nameSpan);
+        } else {
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = username;
+            const badge = document.createElement('span');
+            badge.className = 'slot-badge';
+            badge.textContent = slot || '1';
+            card.appendChild(nameSpan);
+            card.appendChild(badge);
+        }
+
+        floatingOverlayContainer.appendChild(card);
+
+        setTimeout(() => {
+            if (card && card.parentNode) {
+                card.parentNode.removeChild(card);
+            }
+        }, 2800);
     }
 
     // Modals
@@ -107,7 +142,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (savedName) {
         inputPlayerName.value = savedName;
     }
-    const savedHaptic = await DB.get('settings', 'haptic');
+    const savedHaptic = await DB.get('settings', 'haptic_enabled');
     if (savedHaptic !== null) {
         const isHapticOn = (savedHaptic === 'true');
         toggleHaptic.checked = isHapticOn;
@@ -132,6 +167,26 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         return name;
     }
+
+    // Reaction Buttons Event Binding
+    reactionBtns.forEach(btn => {
+        btn.addEventListener('click', async function() {
+            vibrate(10);
+            const slot = parseInt(this.dataset.slot) || 1;
+            const userId = getOrCreateUserId();
+            const userSounds = await SoundPlayer.getUserRandomSounds(userId);
+            const soundPath = userSounds[slot - 1];
+
+            if (window.currentRoomCode && soundPath) {
+                window.AppSocket.emit('trigger_reaction', {
+                    room_code: window.currentRoomCode,
+                    slot: slot,
+                    userId: userId,
+                    soundPath: soundPath
+                });
+            }
+        });
+    });
 
     // Event Handlers - Room Creation & Joining
     btnCreateRoom.addEventListener('click', async function() {
@@ -223,6 +278,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         countdownOverlay.classList.add('hidden');
         screenHome.classList.remove('hidden');
         chatList.innerHTML = '';
+        if (floatingOverlayContainer) floatingOverlayContainer.innerHTML = '';
         CanvasManager.clear();
     }
 
@@ -495,13 +551,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (isDrawer) {
             if (drawingToolbar) drawingToolbar.classList.remove('hidden');
             turnStatusText.textContent = "Giliran kamu menggambar!";
-            SoundPlayer.play('YourTurn');
         } else {
             if (drawingToolbar) drawingToolbar.classList.add('hidden');
             turnStatusText.textContent = "Tebak gambarnya:";
         }
-
-        hasPlayedTimeRemainingSound = false;
     });
 
     window.AppSocket.on('choose_word_prompt', function(data) {
@@ -529,11 +582,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     window.AppSocket.on('timer_tick', function(data) {
         timerDisplay.textContent = `${data.time_remaining}s`;
-        if (data.time_remaining <= 10 && !hasPlayedTimeRemainingSound) {
-            hasPlayedTimeRemainingSound = true;
-            vibrate(15);
-            SoundPlayer.play('TimeRemaining');
-        }
     });
 
     window.AppSocket.on('draw_stroke', function(stroke) {
@@ -548,6 +596,52 @@ document.addEventListener('DOMContentLoaded', async function() {
         CanvasManager.clear();
     });
 
+    // Centralized Play Sound Receiver (v2.0.2)
+    window.AppSocket.on('play_sound', function(payload) {
+        const type = payload.type;
+        const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : null);
+
+        if (type === 'CorrectAnswer') {
+            vibrate([30, 50, 30]);
+            SoundPlayer.play('CorrectAnswer');
+        } else if (type === 'WrongAnswer') {
+            vibrate(20);
+            SoundPlayer.play('WrongAnswer');
+        } else if (type === 'FailedRound') {
+            vibrate([50, 100, 50]);
+            SoundPlayer.play('FailedRound');
+        } else if (type === 'YourTurn') {
+            vibrate([40, 60, 40]);
+            SoundPlayer.play('YourTurn');
+        } else if (type === 'WinnerScore') {
+            vibrate([50, 100, 50, 100, 50]);
+            SoundPlayer.play('WinnerScore');
+        } else if (type === 'TimeRemaining') {
+            vibrate(15);
+            SoundPlayer.play('TimeRemaining');
+        } else if (type === 'Censored') {
+            vibrate(30);
+            SoundPlayer.play('Censored');
+            showFloatingOverlay({
+                username: payload.username,
+                text: payload.extra ? payload.extra.original_text : '',
+                variant: 'censored'
+            });
+        } else if (type === 'Random') {
+            vibrate(25);
+            if (payload.soundPath) {
+                SoundPlayer.playByPath(payload.soundPath);
+            } else {
+                SoundPlayer.play('Random', payload.userId);
+            }
+            showFloatingOverlay({
+                username: payload.username,
+                slot: payload.slot || 1,
+                variant: 'random'
+            });
+        }
+    });
+
     window.AppSocket.on('chat_message', function(data) {
         const div = document.createElement('div');
         div.className = `chat-msg ${data.type}`;
@@ -556,17 +650,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             div.textContent = data.text;
         } else if (data.type === 'correct') {
             div.textContent = data.text;
-            vibrate([30, 50, 30]);
-            SoundPlayer.play('CorrectAnswer');
         } else if (data.type === 'censored') {
             div.textContent = `${data.sender}: ${data.text}`;
-            SoundPlayer.play('Censored');
         } else {
             div.innerHTML = `<span class="chat-sender">${data.sender}:</span> ${data.text}`;
-            if (data.sender !== (inputPlayerName.value || '')) {
-                // Non-correct normal chat wrong guess
-                SoundPlayer.play('WrongAnswer');
-            }
         }
 
         chatList.appendChild(div);
@@ -594,24 +681,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         revealWordDisplay.textContent = data.word.toUpperCase();
         roundSummaryList.innerHTML = '';
 
-        let anyCorrect = false;
         data.summary.forEach(item => {
-            if (item.points_gained > 0) anyCorrect = true;
             const div = document.createElement('div');
             div.className = 'summary-item';
             div.innerHTML = `<span>${item.name}</span> <span>+${item.points_gained} pt (Total: ${item.total_score})</span>`;
             roundSummaryList.appendChild(div);
         });
 
-        if (!anyCorrect) {
-            SoundPlayer.play('FailedRound');
-        }
-
         modalRoundEnded.classList.remove('hidden');
     });
 
     window.AppSocket.on('game_over', function(data) {
-        vibrate([50, 100, 50, 100, 50]);
         modalRoundEnded.classList.add('hidden');
         podiumContainer.innerHTML = '';
 
@@ -634,7 +714,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             btnPlayAgain.classList.add('hidden');
         }
 
-        SoundPlayer.play('WinnerScore');
         modalPodium.classList.remove('hidden');
     });
 });

@@ -23,7 +23,7 @@ const SoundPlayer = (function() {
     };
 
     function init() {
-        // Unlock AudioContext on first user gesture
+        // Unlock AudioContext on first user gesture for ALL clients
         const unlockEvents = ['pointerdown', 'touchstart', 'click'];
         const unlockHandler = () => {
             if (!audioCtx) {
@@ -40,7 +40,7 @@ const SoundPlayer = (function() {
             unlockEvents.forEach(evt => document.removeEventListener(evt, unlockHandler));
         };
 
-        unlockEvents.forEach(evt => document.addEventListener(evt, unlockHandler, { once: true }));
+        unlockEvents.forEach(evt => document.addEventListener(evt, unlockHandler, { once: true, capture: true }));
 
         // Load preference
         DB.get('settings', 'sound_effects').then(val => {
@@ -110,20 +110,9 @@ const SoundPlayer = (function() {
         return picked;
     }
 
-    async function play(category, userId = null) {
-        if (!isSoundEnabled) return;
-
-        let targetPath = null;
-        if (category === 'Random') {
-            const currentUserId = userId || getOrCreateUserId();
-            const userSounds = await getUserRandomSounds(currentUserId);
-            targetPath = userSounds[Math.floor(Math.random() * userSounds.length)];
-        } else if (SOUND_CATEGORIES[category]) {
-            const options = SOUND_CATEGORIES[category];
-            targetPath = options[Math.floor(Math.random() * options.length)];
-        }
-
-        if (!targetPath) return;
+    async function playByPath(targetPath) {
+        console.log('[sound]', targetPath, 'unlocked=', audioUnlocked);
+        if (!isSoundEnabled || !targetPath) return;
 
         try {
             const buffer = await getAudioBuffer(targetPath);
@@ -144,13 +133,33 @@ const SoundPlayer = (function() {
 
             source.start(0);
         } catch (err) {
-            console.warn('[SoundPlayer] Error playing sound category:', category, err);
+            console.warn('[SoundPlayer] Error playing sound path:', targetPath, err);
         }
+    }
+
+    async function play(category, userId = null) {
+        console.log('[sound]', category, 'unlocked=', audioUnlocked);
+        if (!isSoundEnabled) return;
+
+        let targetPath = null;
+        if (category === 'Random') {
+            const currentUserId = userId || getOrCreateUserId();
+            const userSounds = await getUserRandomSounds(currentUserId);
+            targetPath = userSounds[Math.floor(Math.random() * userSounds.length)];
+        } else if (SOUND_CATEGORIES[category]) {
+            const options = SOUND_CATEGORIES[category];
+            targetPath = options[Math.floor(Math.random() * options.length)];
+        }
+
+        if (!targetPath) return;
+        await playByPath(targetPath);
     }
 
     return {
         init: init,
         play: play,
+        playByPath: playByPath,
+        getUserRandomSounds: getUserRandomSounds,
         setSoundEnabled: setSoundEnabled,
         getSoundEnabled: getSoundEnabled
     };
