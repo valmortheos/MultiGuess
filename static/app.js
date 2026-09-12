@@ -1,6 +1,7 @@
 // App Global State & Socket Initialization
 // [v1.0.5-OLD] const APP_VERSION = "1.0.5";
-const APP_VERSION = "2.0.2";
+// [v2.0.2-OLD] const APP_VERSION = "2.0.2";
+const APP_VERSION = "2.0.3";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -54,7 +55,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     const toastHampirBenar = document.getElementById('toast-hampir-benar');
 
     const floatingOverlayContainer = document.getElementById('floating-overlay-container');
-    const reactionBtns = document.querySelectorAll('.btn-reaction');
+    const reactionBtns = document.querySelectorAll('#reaction-bar .btn-reaction');
+
+    // Dev Panel Elements (v2.0.3)
+    const btnDevPanel = document.getElementById('btn-dev-panel');
+    const modalDevPanel = document.getElementById('modal-dev-panel');
+    const btnCloseDevPanel = document.getElementById('btn-close-dev-panel');
+
+    const btnDevInviteBot = document.getElementById('btn-dev-invite-bot');
+    const btnDevRemoveBot = document.getElementById('btn-dev-remove-bot');
+    const devBotStatusBadge = document.getElementById('dev-bot-status-badge');
+
+    const devSoundType = document.getElementById('dev-sound-type');
+    const btnDevTriggerSound = document.getElementById('btn-dev-trigger-sound');
+    const devSoundAckLog = document.getElementById('dev-sound-ack-log');
+
+    const devReactionBtns = document.querySelectorAll('.btn-dev-reaction');
+    const devReactionAckLog = document.getElementById('dev-reaction-ack-log');
+
+    const btnDevForceRoundEnd = document.getElementById('btn-dev-force-round-end');
+    const devConsoleLog = document.getElementById('dev-console-log');
 
     // Countdown Overlay
     const countdownOverlay = document.getElementById('countdown-overlay');
@@ -441,6 +461,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             btnBackLobby.textContent = "← Keluar";
         }
 
+        if (window.isHost) {
+            if (btnDevPanel) btnDevPanel.classList.remove('hidden');
+        } else {
+            if (btnDevPanel) btnDevPanel.classList.add('hidden');
+        }
+
         if (window.isHost && data.state === 'LOBBY') {
             hostSettings.classList.remove('hidden');
             btnStartGame.classList.remove('hidden');
@@ -689,6 +715,153 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
 
         modalRoundEnded.classList.remove('hidden');
+    });
+
+    // Dev Panel Socket Events & Handlers (v2.0.3)
+    if (btnDevPanel) {
+        btnDevPanel.addEventListener('click', function() {
+            vibrate(10);
+            if (modalDevPanel) modalDevPanel.classList.remove('hidden');
+            checkBotStatus();
+        });
+    }
+
+    if (btnCloseDevPanel) {
+        btnCloseDevPanel.addEventListener('click', function() {
+            vibrate(10);
+            if (modalDevPanel) modalDevPanel.classList.add('hidden');
+        });
+    }
+
+    function appendDevLog(msg) {
+        if (!devConsoleLog) return;
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        div.textContent = msg;
+        devConsoleLog.appendChild(div);
+        devConsoleLog.scrollTop = devConsoleLog.scrollHeight;
+    }
+
+    async function devApiRequest(url, method = 'GET', body = null) {
+        try {
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-Socket-ID': window.currentSid || (window.AppSocket ? window.AppSocket.id : '')
+            };
+            const options = { method, headers };
+            if (body) options.body = JSON.stringify(body);
+            const res = await fetch(url, options);
+            return await res.json();
+        } catch (err) {
+            console.error('[DevApi] Error:', err);
+            return { error: err.message };
+        }
+    }
+
+    async function checkBotStatus() {
+        if (!window.currentRoomCode) return;
+        const data = await devApiRequest(`/api/dev/bot/status?room_code=${window.currentRoomCode}`);
+        if (data && data.active_bots && data.active_bots.length > 0) {
+            if (devBotStatusBadge) {
+                devBotStatusBadge.textContent = "Bot Active";
+                devBotStatusBadge.className = "badge badge-active";
+            }
+        } else {
+            if (devBotStatusBadge) {
+                devBotStatusBadge.textContent = "Bot Inactive";
+                devBotStatusBadge.className = "badge badge-inactive";
+            }
+        }
+    }
+
+    if (btnDevInviteBot) {
+        btnDevInviteBot.addEventListener('click', async function() {
+            vibrate(10);
+            if (!window.currentRoomCode) return;
+            const res = await devApiRequest('/api/dev/bot/join', 'POST', {
+                room_code: window.currentRoomCode,
+                sid: window.currentSid
+            });
+            appendDevLog(`Invite Bot: ${res.message || res.error}`);
+            checkBotStatus();
+        });
+    }
+
+    if (btnDevRemoveBot) {
+        btnDevRemoveBot.addEventListener('click', async function() {
+            vibrate(10);
+            if (!window.currentRoomCode) return;
+            const res = await devApiRequest('/api/dev/bot/leave', 'POST', {
+                room_code: window.currentRoomCode,
+                sid: window.currentSid
+            });
+            appendDevLog(`Remove Bot: ${res.message || res.error}`);
+            checkBotStatus();
+        });
+    }
+
+    if (btnDevTriggerSound) {
+        btnDevTriggerSound.addEventListener('click', async function() {
+            vibrate(10);
+            if (!window.currentRoomCode) return;
+            const type = devSoundType ? devSoundType.value : 'CorrectAnswer';
+            const res = await devApiRequest('/api/dev/bot/trigger_sound', 'POST', {
+                room_code: window.currentRoomCode,
+                type: type,
+                sid: window.currentSid
+            });
+            appendDevLog(`Trigger Sound (${type}): ${res.message || res.error}`);
+        });
+    }
+
+    devReactionBtns.forEach(btn => {
+        btn.addEventListener('click', async function() {
+            vibrate(10);
+            if (!window.currentRoomCode) return;
+            const slot = parseInt(this.dataset.slot) || 1;
+            const res = await devApiRequest('/api/dev/bot/trigger_reaction', 'POST', {
+                room_code: window.currentRoomCode,
+                slot: slot,
+                sid: window.currentSid
+            });
+            appendDevLog(`Trigger Bot Reaction (Slot ${slot}): ${res.message || res.error}`);
+        });
+    });
+
+    if (btnDevForceRoundEnd) {
+        btnDevForceRoundEnd.addEventListener('click', async function() {
+            vibrate(10);
+            if (!window.currentRoomCode) return;
+            const res = await devApiRequest('/api/dev/bot/force_round_end', 'POST', {
+                room_code: window.currentRoomCode,
+                sid: window.currentSid
+            });
+            appendDevLog(`Force Round End: ${res.message || res.error}`);
+        });
+    }
+
+    window.AppSocket.on('dev_log', function(data) {
+        appendDevLog(`[${data.level.toUpperCase()}] ${data.message}`);
+    });
+
+    window.AppSocket.on('bot_ack', function(data) {
+        const line = `Bot ACK: ${data.type} at ${new Date(data.received_at).toLocaleTimeString()}`;
+        if (data.type === 'Random' || data.payload.slot) {
+            if (devReactionAckLog) devReactionAckLog.textContent = line;
+        } else {
+            if (devSoundAckLog) devSoundAckLog.textContent = line;
+        }
+        appendDevLog(line);
+    });
+
+    window.AppSocket.on('dev_bot_joined', function(data) {
+        checkBotStatus();
+        appendDevLog(`Bot Joined: ${data.bot_name}`);
+    });
+
+    window.AppSocket.on('dev_bot_left', function(data) {
+        checkBotStatus();
+        appendDevLog(`Bot Left: ${data.bot_name}`);
     });
 
     window.AppSocket.on('game_over', function(data) {

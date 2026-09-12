@@ -93,6 +93,15 @@ const SoundPlayer = (function() {
         }
     }
 
+    function shuffle(arr) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
     async function getUserRandomSounds(userId) {
         let stored = await DB.get('user_random_sounds', userId);
         if (stored && stored.sounds && stored.sounds.length === 3) {
@@ -100,23 +109,21 @@ const SoundPlayer = (function() {
         }
 
         const all = [...SOUND_CATEGORIES.RandomAll];
-        // Shuffle array
-        for (let i = all.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [all[i], all[j]] = [all[j], all[i]];
-        }
-        const picked = all.slice(0, 3);
+        const picked = shuffle(all).slice(0, 3);
         await DB.set('user_random_sounds', userId, { userId, sounds: picked });
         return picked;
     }
 
     async function playByPath(targetPath) {
-        console.log('[sound]', targetPath, 'unlocked=', audioUnlocked);
+        console.log('[sound] playByPath', targetPath, 'unlocked=', audioUnlocked);
         if (!isSoundEnabled || !targetPath) return;
 
         try {
             const buffer = await getAudioBuffer(targetPath);
-            if (!buffer || !audioCtx) return;
+            if (!buffer || !audioCtx) {
+                console.warn('[sound] playByPath buffer null for path:', targetPath);
+                return;
+            }
 
             if (audioCtx.state === 'suspended') {
                 await audioCtx.resume();

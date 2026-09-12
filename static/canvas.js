@@ -31,6 +31,20 @@ const CanvasManager = (function() {
             requestAnimationFrame(resizeCanvas);
         });
 
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                requestAnimationFrame(resizeCanvas);
+            });
+        }
+
+        const container = document.getElementById('canvas-container');
+        if (container && window.ResizeObserver) {
+            const ro = new ResizeObserver(() => {
+                requestAnimationFrame(resizeCanvas);
+            });
+            ro.observe(container);
+        }
+
         // Prevent double-tap zoom
         window.addEventListener('dblclick', function(e) {
             e.preventDefault();
@@ -105,11 +119,14 @@ const CanvasManager = (function() {
         const x = (clientX - rect.left) / rect.width;
         const y = (clientY - rect.top) / rect.height;
 
-        console.log('[CanvasManager] debug getCanvasCoords:', { clientX, clientY, rectLeft: rect.left, rectTop: rect.top, rectW: rect.width, rectH: rect.height, normX: x, normY: y });
+        const finalX = Math.max(0, Math.min(1, x));
+        const finalY = Math.max(0, Math.min(1, y));
+
+        console.log('[coords]', { rect, x: finalX, y: finalY, clientX, clientY });
 
         return {
-            x: Math.max(0, Math.min(1, x)),
-            y: Math.max(0, Math.min(1, y))
+            x: finalX,
+            y: finalY
         };
     }
 
