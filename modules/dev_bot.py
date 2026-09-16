@@ -2,15 +2,20 @@ import uuid
 import time
 import random
 from modules.config import DEV_MODE
+from modules.sound_manifest import load_sound_config, SOUND_DIR
+import os
 
-RANDOM_SOUND_FILES = [
-    'Random/rd_ack.mp3',
-    'Random/rd_ahh.mp3',
-    'Random/rd_laugh.mp3',
-    'Random/rd_meow.mp3',
-    'Random/rd_metalclang.mp3',
-    'Random/rd_taco.mp3'
-]
+# [v2.2.0-OLD] Hardcoded RANDOM_SOUND_FILES list
+# [v2.2.0-NEW] Dynamic pool from sound_config.json filtered by existing files on disk
+def get_random_sound_files():
+    config = load_sound_config()
+    pool = config.get("categories", {}).get("Random", [])
+    valid_pool = [p for p in pool if os.path.exists(os.path.join(SOUND_DIR, p))]
+    return valid_pool if valid_pool else [
+        'Random/rd_ack.mp3',
+        'Random/rd_ahh.mp3',
+        'Random/rd_laugh.mp3'
+    ]
 
 class DevBot:
     def __init__(self, socketio, room_code, bot_name="Bot-Dev"):
@@ -21,7 +26,7 @@ class DevBot:
         self.sid = f"BOT-{self.mg_user_id[:8]}"
 
         # Select 3 random sounds using Fisher-Yates
-        all_sounds = list(RANDOM_SOUND_FILES)
+        all_sounds = get_random_sound_files()
         for i in range(len(all_sounds) - 1, 0, -1):
             j = random.randint(0, i)
             all_sounds[i], all_sounds[j] = all_sounds[j], all_sounds[i]

@@ -60,3 +60,56 @@ def get_sound_manifest():
         # Check if files count or directory mtime roughly matches
         return cached
     return generate_sound_manifest()
+
+
+# [v2.2.0-NEW] Add load_sound_config function to load data/sound_config.json
+DEFAULT_SOUND_CONFIG = {
+    "version": "1.0-fallback",
+    "description": "Fallback sound config",
+    "categories": {
+        "Censored": ["Censored/cn_boom.mp3"],
+        "CorrectAnswer": ["CorrectAnswer/cr_wow.mp3"],
+        "FailedRound": ["FailedRound/fl_sponge.mp3"],
+        "TimeRemaining": ["TimeRemaining/tm_sponge.mp3"],
+        "WinnerScore": ["WinnerScore/ws_dubistgut.mp3"],
+        "WrongAnswer": ["WrongAnswer/wg_fahh.mp3", "WrongAnswer/wg_jokowi.mp3"],
+        "YourTurn": ["YourTurn/yt_amongus.mp3"],
+        "Random": [
+            "Random/rd_ack.mp3",
+            "Random/rd_ahh.mp3",
+            "Random/rd_laugh.mp3",
+            "Random/rd_meow.mp3",
+            "Random/rd_metalclang.mp3",
+            "Random/rd_taco.mp3"
+        ]
+    },
+    "fallback_freq": {
+        "Censored": 110,
+        "CorrectAnswer": 880,
+        "FailedRound": 165,
+        "Random": 520,
+        "TimeRemaining": 330,
+        "WinnerScore": 1046,
+        "WrongAnswer": 220,
+        "YourTurn": 660
+    }
+}
+
+def load_sound_config():
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'sound_config.json')
+    if not os.path.exists(config_path):
+        print(f"[sound_manifest] Config file missing at {config_path}, using default fallback.")
+        return DEFAULT_SOUND_CONFIG
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # Basic validation
+            if "categories" in data:
+                return data
+            else:
+                print("[sound_manifest] Config missing 'categories', using default fallback.")
+                return DEFAULT_SOUND_CONFIG
+    except Exception as e:
+        print(f"[sound_manifest] Error reading sound_config.json: {e}, using default fallback.")
+        return DEFAULT_SOUND_CONFIG

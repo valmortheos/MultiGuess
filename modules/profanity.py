@@ -26,7 +26,11 @@ PROFANITY_LIST = [
     'idiot', 'dumbass', 'prick', 'twat'
 ]
 
-PROFANITY_SET = set(word.lower() for word in PROFANITY_LIST)
+# [v2.2.0-OLD] PROFANITY_SET = set(word.lower() for word in PROFANITY_LIST)
+
+# [v2.2.0-NEW] Dynamic JSON loading with exact & substring categorization and fallback
+EXACT_PROFANITY_SET = set()
+SUBSTRING_PROFANITY_SET = set()
 
 LEET_MAP = str.maketrans({
     '4': 'a',
@@ -39,6 +43,29 @@ LEET_MAP = str.maketrans({
     '$': 's',
     '7': 't'
 })
+
+def reload_profanity_words():
+    global EXACT_PROFANITY_SET, SUBSTRING_PROFANITY_SET
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'censored_words.json')
+    loaded = False
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                exact_list = data.get('exact', [])
+                sub_list = data.get('substring', [])
+                EXACT_PROFANITY_SET = set(w.lower() for w in exact_list)
+                SUBSTRING_PROFANITY_SET = set(w.lower() for w in sub_list)
+                loaded = True
+        except Exception as e:
+            print(f"[Profanity] Error loading censored_words.json: {e}, falling back to default.")
+
+    if not loaded:
+        EXACT_PROFANITY_SET = set(word.lower() for word in PROFANITY_LIST)
+        SUBSTRING_PROFANITY_SET = set()
+
+# Initialize on module import
+reload_profanity_words()
 
 def collapse_repeats(s: str) -> str:
     res = []
@@ -63,6 +90,7 @@ def normalize(text: str) -> str:
     text_norm = collapse_repeats(text_norm)
     return text_norm
 
+# [v2.2.0-OLD] contains_profanity implementation using PROFANITY_SET
 def contains_profanity(text: str) -> tuple[bool, str | None]:
     if not text:
         return False, None
@@ -71,25 +99,29 @@ def contains_profanity(text: str) -> tuple[bool, str | None]:
     if not normalized_text:
         return False, None
 
-    # Tokenized checking on raw text
+    # 1. Exact match checking (tokenized raw text & normalized tokens)
     raw_lower = text.lower()
     words = re.findall(r'\b\w+\b', raw_lower)
     for w in words:
         w_norm = normalize(w)
-        for bad_word in PROFANITY_SET:
-            if normalize(bad_word) == w_norm:
-                return True, w
+        for bad_word in EXACT_PROFANITY_SET:
+            if bad_word == w or normalize(bad_word) == w_norm:
+                return True, bad_word
 
-    # Full normalized string check for spaced/punctuate bypassing (e.g. "a n j i n g", "s.l.o.t")
-    for bad_word in PROFANITY_SET:
+    # Exact match check on entire normalized text for short words or spaced words (e.g., "b a b i")
+    for bad_word in EXACT_PROFANITY_SET:
         norm_bad = normalize(bad_word)
-        # For short words (len <= 3 like 'asu', 'cuk', 'sia'), avoid sub-string matching on long strings unless exact match
-        if len(norm_bad) <= 3:
-            if normalized_text == norm_bad:
-                return True, bad_word
-        else:
-            if norm_bad in normalized_text:
-                return True, bad_word
+        if normalized_text == norm_bad:
+            return True, bad_word
+        # If long exact bad word (len > 3), also check token boundaries in normalized text
+        if len(norm_bad) > 3 and norm_bad in normalized_text.split():
+            return True, bad_word
+
+    # 2. Substring match checking (checked within normalized text)
+    for bad_word in SUBSTRING_PROFANITY_SET:
+        norm_bad = normalize(bad_word)
+        if norm_bad and norm_bad in normalized_text:
+            return True, bad_word
 
     return False, None
 

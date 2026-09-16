@@ -9,7 +9,18 @@ from modules.words import pick_three_words
 from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
 from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
 from modules.game_state import RoomManager, normalize_room_code
-from modules.sound_manifest import get_sound_manifest, SOUND_DIR
+from modules.sound_manifest import get_sound_manifest, load_sound_config, SOUND_DIR
+
+# [v2.2.0-NEW] Dynamic RANDOM_SOUND_POOL loaded from sound_config.json filtered by existing files on disk
+def get_random_sound_pool():
+    config = load_sound_config()
+    pool = config.get("categories", {}).get("Random", [])
+    valid_pool = [p for p in pool if os.path.exists(os.path.join(SOUND_DIR, p))]
+    return valid_pool if valid_pool else [
+        'Random/rd_ack.mp3',
+        'Random/rd_ahh.mp3',
+        'Random/rd_laugh.mp3'
+    ]
 from modules.profanity import contains_profanity, is_profane, log_moderation
 from modules.dev_bot import (
     active_dev_bots, get_active_bot, spawn_bot, remove_bot, trigger_bot_reaction
@@ -61,9 +72,21 @@ def start_next_turn(room_code):
         room_mgr.save_cache()
         return
 
+    # [v2.2.0-NEW] Fair drawer rotation guard and round calculation
     if room['drawer_index'] >= len(room['drawer_order']):
-        room['current_round'] += 1
-        room['drawer_index'] = 0
+        room['state'] = 'GAME_OVER'
+        leaderboard = room_mgr.get_room_data(room_code)['players']
+        socketio.emit('game_over', {
+            'leaderboard': leaderboard
+        }, to=room_code)
+        emit_play_sound(room_code, {'type': 'WinnerScore'})
+        broadcast_room_update(room_code)
+        room_mgr.save_cache()
+        return
+
+    active_humans = [sid for sid, p in room['players'].items() if not p.get('is_bot')]
+    human_count = room.get('human_player_count') or len(active_humans) or 1
+    room['current_round'] = (room['drawer_index'] // human_count) + 1
 
     if room['current_round'] > room['settings']['total_rounds']:
         room['state'] = 'GAME_OVER'
@@ -246,6 +269,12 @@ def serve_sound(filename):
 def sound_manifest():
     manifest = get_sound_manifest()
     return jsonify(manifest)
+
+# [v2.2.0-NEW] GET /api/sound-config endpoint
+@app.route('/api/sound-config')
+def sound_config():
+    config = load_sound_config()
+    return jsonify(config)
 
 # DEV MODE API ENDPOINTS
 def check_dev_mode_and_host(room_code):
@@ -474,11 +503,24 @@ def handle_start_game(data):
         emit('error_message', {'message': 'Minimal 2 pemain manusia untuk memulai permainan.'})
         return
 
-    p_sids = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
+    # [v2.2.0-OLD] Simple shuffle of human players list
+    # p_sids = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
+    # import random
+    # random.shuffle(p_sids)
+    # room['drawer_order'] = p_sids
+
+    # [v2.2.0-NEW] Fair Drawer Rotation: total_rounds * len(human_players) slots, independently shuffled per round
     import random
-    random.shuffle(p_sids)
-    room['drawer_order'] = p_sids
+    total_rounds = room['settings']['total_rounds']
+    fair_order = []
+    for _ in range(total_rounds):
+        round_sids = list(human_players)
+        random.shuffle(round_sids)
+        fair_order.extend(round_sids)
+
+    room['drawer_order'] = fair_order
     room['drawer_index'] = 0
+    room['human_player_count'] = len(human_players)
     room['current_round'] = 1
 
     for p_sid in room['players']:
