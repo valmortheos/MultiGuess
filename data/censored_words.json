@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "description": "Daftar kata yang disensor. Mendukung exact match dan substring.",
+  "exact": [
+    "anjing",
+    "bangsat",
+    "babi",
+    "kampret",
+    "kontol",
+    "memek",
+    "ngentot",
+    "pepek",
+    "tai",
+    "titit",
+    "jancok",
+    "asw",
+    "asu"
+  ],
+  "substring": [
+    "anjeng",
+    "jancuk",
+    "cok",
+    "tll",
+    "bgsd"
+  ]
+}
