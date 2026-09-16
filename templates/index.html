@@ -14,8 +14,8 @@
     <!-- [v2.0.5-OLD] <title>MultiGuess v2.0.5 - Game Draw & Guess</title> -->
     <title>MultiGuess v2.2.0 - Game Draw & Guess</title>
     <link rel="stylesheet" href="/static/style.css">
-    <!-- Socket.IO CDN -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Local Socket.IO -->
+    <script src="/static/socket.io.min.js?v=220"></script>
 </head>
 <body>
 
@@ -155,8 +155,9 @@
                     </div>
                 </div>
 
-                <!-- Action Bar / Reaction Buttons Bar (v2.0.3 Repositioned to Toolbar/Action Bar) -->
+                <!-- Action Bar / Reaction Buttons Bar -->
                 <div id="reaction-bar" class="reaction-bar">
+                    <button type="button" id="btn-voice" class="btn-reaction btn-voice" title="Toggle Voice Chat">🎤</button>
                     <button type="button" class="btn-reaction" data-slot="1" title="Reaction 1">1</button>
                     <button type="button" class="btn-reaction" data-slot="2" title="Reaction 2">2</button>
                     <button type="button" class="btn-reaction" data-slot="3" title="Reaction 3">3</button>
@@ -379,10 +380,11 @@
         </div>
     </div>
 
-    <script src="/static/storage.js"></script>
-    <script src="/static/sound-loader.js"></script>
-    <script src="/static/sound-player.js"></script>
-    <script src="/static/canvas.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/storage.js?v=220"></script>
+    <script src="/static/sound-loader.js?v=220"></script>
+    <script src="/static/sound-player.js?v=220"></script>
+    <script src="/static/canvas.js?v=220"></script>
+    <script src="/static/voice.js?v=220"></script>
+    <script src="/static/app.js?v=220"></script>
 </body>
 </html>

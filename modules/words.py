@@ -30,3 +30,6 @@ WORD_BANK = [
 
 def pick_three_words():
     return random.sample(WORD_BANK, 3)
+
+def get_pool_size():
+    return len(WORD_BANK)

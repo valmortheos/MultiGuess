@@ -30,6 +30,13 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'multiguess-termux-secret-key-2025')
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 
+@app.after_request
+def add_no_cache_headers(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 room_mgr = RoomManager()
 
 # User Reaction Cooldown Tracker: sid -> last_reaction_timestamp
@@ -261,6 +268,15 @@ def delay_next_turn_task(room_code):
 def index():
     return render_template('index.html')
 
+@app.route('/debug')
+def debug_page():
+    return jsonify({
+        'version': APP_VERSION,
+        'dev_mode': DEV_MODE,
+        'active_rooms': len(room_mgr.rooms),
+        'cache_summary': get_cache_summary()
+    })
+
 @app.route('/Sound/<path:filename>')
 def serve_sound(filename):
     return send_from_directory(SOUND_DIR, filename)
@@ -385,69 +401,80 @@ def handle_connect():
 
 @socketio.on('create_room')
 def handle_create_room(data):
-    player_name = data.get('player_name', '').strip() or data.get('name', '').strip()
-    print(f'[create_room] sid={request.sid} name={player_name!r}')
-    if not player_name:
-        emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
-        return
+    try:
+        player_name = data.get('player_name', '').strip() or data.get('name', '').strip()
+        print(f'[create_room] sid={request.sid} name={player_name!r}')
+        if not player_name:
+            emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
+            return
 
-    has_profanity, matched = contains_profanity(player_name)
-    if has_profanity:
-        log_moderation('reject_player_name', player_name, player_name, matched)
-        emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
-        return
+        has_profanity, matched = contains_profanity(player_name)
+        if has_profanity:
+            log_moderation('reject_player_name', player_name, player_name, matched)
+            emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
+            return
 
-    sid = request.sid
-    room_code = room_mgr.create_room(sid, player_name)
+        sid = request.sid
+        room_code = room_mgr.create_room(sid, player_name)
+        print(f'[create_room] success: {room_code}')
 
-    join_room(room_code)
-    emit('room_joined', {'room_code': room_code, 'is_host': True})
-    broadcast_room_update(room_code)
+        join_room(room_code)
+        emit('room_joined', {'room_code': room_code, 'is_host': True})
+        broadcast_room_update(room_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        emit('error_message', {'message': f'Server error saat membuat room: {e}'})
 
 @socketio.on('join_room')
 def handle_join_room(data):
-    player_name = data.get('player_name', '').strip()
-    raw_code = data.get('room_code', '')
-    room_code = normalize_room_code(raw_code)
-    sid = request.sid
-    print(f'[join_room] sid={sid} name={player_name} code={room_code}')
+    try:
+        player_name = data.get('player_name', '').strip() or data.get('name', '').strip()
+        raw_code = data.get('room_code', '')
+        room_code = normalize_room_code(raw_code)
+        sid = request.sid
+        print(f'[join_room] sid={sid} name={player_name} code={room_code}')
 
-    if not player_name:
-        emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
-        return
+        if not player_name:
+            emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
+            return
 
-    has_profanity, matched = contains_profanity(player_name)
-    if has_profanity:
-        log_moderation('reject_player_name', player_name, player_name, matched, room_code)
-        emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
-        return
+        has_profanity, matched = contains_profanity(player_name)
+        if has_profanity:
+            log_moderation('reject_player_name', player_name, player_name, matched, room_code)
+            emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
+            return
 
-    if not room_code:
-        emit('join_error', {'reason': 'invalid_code', 'code': raw_code})
-        return
+        if not room_code:
+            emit('join_error', {'reason': 'invalid_code', 'code': raw_code})
+            return
 
-    room = room_mgr.get_room(room_code)
-    if not room:
-        emit('join_error', {'reason': 'not_found', 'code': room_code})
-        return
+        room = room_mgr.get_room(room_code)
+        if not room:
+            emit('join_error', {'reason': 'not_found', 'code': room_code})
+            return
 
-    if room['state'] != 'LOBBY':
-        emit('join_error', {'reason': 'in_progress', 'code': room_code})
-        return
+        if room['state'] != 'LOBBY':
+            emit('join_error', {'reason': 'in_progress', 'code': room_code})
+            return
 
-    join_room(room_code)
-    room['players'][sid] = {
-        'sid': sid,
-        'name': player_name,
-        'score': 0,
-        'has_guessed': False
-    }
+        join_room(room_code)
+        room['players'][sid] = {
+            'sid': sid,
+            'name': player_name,
+            'score': 0,
+            'has_guessed': False
+        }
 
-    room_mgr.save_cache()
+        room_mgr.save_cache()
 
-    emit('room_joined', {'room_code': room_code, 'is_host': False})
-    socketio.emit('system_message', {'text': f"{player_name} bergabung ke room."}, to=room_code)
-    broadcast_room_update(room_code)
+        emit('room_joined', {'room_code': room_code, 'is_host': False})
+        socketio.emit('system_message', {'text': f"{player_name} bergabung ke room."}, to=room_code)
+        broadcast_room_update(room_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        emit('error_message', {'message': f'Server error saat join room: {e}'})
 
 @socketio.on('canvas_ready')
 def handle_canvas_ready(data):
