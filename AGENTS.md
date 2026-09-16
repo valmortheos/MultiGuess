@@ -19,4 +19,5 @@
 <!-- [v2.0.2-OLD] - Current version: **2.0.2** -->
 <!-- [v2.0.3-OLD] - Current version: **2.0.3** -->
 <!-- [v2.0.4-OLD] - Current version: **2.0.4** -->
-- Current version: **2.0.5**
+<!-- [v2.2.0-OLD] - Current version: **2.2.0** -->
+- Current version: **2.2.1**

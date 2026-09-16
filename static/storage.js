@@ -50,6 +50,8 @@ const DB = {
         });
     },
 
+    // [v2.2.1-OLD]
+    /*
     async get(store, key) {
         if (!this.db) return localStorage.getItem(`${store}_${key}`);
         return new Promise((resolve) => {
@@ -78,6 +80,55 @@ const DB = {
         } catch (err) {
             console.warn("IndexedDB set failed", err);
         }
+    },
+    */
+    // [v2.2.1-NEW] Guaranteed timeout fallback for DB get and set operations
+    async get(store, key) {
+        const localVal = localStorage.getItem(`${store}_${key}`);
+        if (!this.db) return localVal;
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                console.warn(`[DB.get] Timeout for ${store}:${key}, fallback to localStorage`);
+                resolve(localVal);
+            }, 300);
+            try {
+                const tx = this.db.transaction(store, 'readonly');
+                const req = tx.objectStore(store).get(key);
+                req.onsuccess = () => {
+                    clearTimeout(timer);
+                    resolve(req.result !== undefined ? req.result : localVal);
+                };
+                req.onerror = () => {
+                    clearTimeout(timer);
+                    resolve(localVal);
+                };
+            } catch (err) {
+                clearTimeout(timer);
+                resolve(localVal);
+            }
+        });
+    },
+
+    async set(store, key, value) {
+        localStorage.setItem(`${store}_${key}`, typeof value === 'string' ? value : JSON.stringify(value));
+        if (!this.db) return;
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => resolve(), 300);
+            try {
+                const tx = this.db.transaction(store, 'readwrite');
+                const objectStore = tx.objectStore(store);
+                tx.oncomplete = () => { clearTimeout(timer); resolve(); };
+                tx.onerror = () => { clearTimeout(timer); resolve(); };
+                if (objectStore.keyPath) {
+                    objectStore.put(value);
+                } else {
+                    objectStore.put(value, key);
+                }
+            } catch (err) {
+                clearTimeout(timer);
+                resolve();
+            }
+        });
     },
 
     async getSound(path) {

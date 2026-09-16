@@ -4,7 +4,8 @@
 // [v2.0.3-OLD] const APP_VERSION = "2.0.3";
 // [v2.0.4-OLD] const APP_VERSION = "2.0.4";
 // [v2.0.5-OLD] const APP_VERSION = "2.0.5";
-const APP_VERSION = "2.2.0";
+// [v2.2.0-OLD] const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.2.1";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -182,17 +183,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     const btnPlayAgain = document.getElementById('btn-play-again');
     const btnExitPodium = document.getElementById('btn-exit-podium');
 
-    // Restore Name & Settings from DB
-    const savedName = await DB.get('settings', 'player_name');
-    if (savedName) {
-        inputPlayerName.value = savedName;
-    }
-    const savedHaptic = await DB.get('settings', 'haptic_enabled');
-    if (savedHaptic !== null) {
-        const isHapticOn = (savedHaptic === 'true');
-        toggleHaptic.checked = isHapticOn;
-        setHapticEnabled(isHapticOn);
-    }
+    // [v2.2.1-NEW] Non-blocking restore settings from DB
+    DB.get('settings', 'player_name').then(savedName => {
+        if (savedName && inputPlayerName) inputPlayerName.value = savedName;
+    }).catch(err => console.warn('[init] DB get name error:', err));
+
+    DB.get('settings', 'haptic_enabled').then(savedHaptic => {
+        if (savedHaptic !== null && toggleHaptic) {
+            const isHapticOn = (savedHaptic === 'true');
+            toggleHaptic.checked = isHapticOn;
+            setHapticEnabled(isHapticOn);
+        }
+    }).catch(err => console.warn('[init] DB get haptic error:', err));
 
     if (toggleSound) {
         toggleSound.checked = SoundPlayer.getSoundEnabled();
@@ -207,10 +209,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
-    async function savePlayerName() {
+    function savePlayerName() {
         const name = inputPlayerName.value.trim();
         if (name) {
-            await DB.set('settings', 'player_name', name);
+            DB.set('settings', 'player_name', name).catch(e => console.warn('[DB] savePlayerName warning:', e));
         }
         return name;
     }
@@ -258,11 +260,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // Event Handlers - Room Creation & Joining with Diagnostic Logs
-    btnCreateRoom.addEventListener('click', async function() {
+    btnCreateRoom.addEventListener('click', function() {
         console.log('[btn] create-room clicked');
         vibrate(10);
         try {
-            const name = await savePlayerName();
+            const name = savePlayerName();
             console.log('[btn] name =', JSON.stringify(name));
             if (!name) {
                 showToast('Isi nama dulu ya');
@@ -277,11 +279,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
-    btnJoinRoom.addEventListener('click', async function() {
+    btnJoinRoom.addEventListener('click', function() {
         console.log('[btn] join-room clicked');
         vibrate(10);
         try {
-            const name = await savePlayerName();
+            const name = savePlayerName();
             const rawCode = inputRoomCode.value.trim();
             console.log('[btn] name =', JSON.stringify(name), 'code =', JSON.stringify(rawCode));
             if (!name) {

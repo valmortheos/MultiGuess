@@ -1,0 +1,247 @@
+name: MultiGuess Test Suite
+
+on:
+  push:
+    branches: [main, dev, '**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # manual trigger dari GitHub UI
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest ruff
+
+      - name: Install Node dependencies (quick-lint-js)
+        run: |
+          npm install -g quick-lint-js
+
+      - name: Python syntax check (compile all .py)
+        id: py_syntax
+        run: |
+          echo "## 🐍 Python Syntax" >> $GITHUB_STEP_SUMMARY
+          python -m compileall -q app.py modules/ tools/ test_*.py 2>&1 | tee py_syntax.log || true
+          if [ -s py_syntax.log ]; then
+            echo "❌ Ada error syntax" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat py_syntax.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Semua file Python bisa di-compile" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Python import check (semua module)
+        id: py_import
+        run: |
+          echo "## 📥 Python Import" >> $GITHUB_STEP_SUMMARY
+          python -c "from modules.config import APP_VERSION; print('config OK')" || echo "config FAIL"
+          python -c "from modules.words import get_pool_size, pick_three_words; print('words OK:', get_pool_size())" || echo "words FAIL"
+          python -c "from modules.game_state import RoomManager; print('game_state OK')" || echo "game_state FAIL"
+          python -c "from modules.profanity import contains_profanity; print('profanity OK')" || echo "profanity FAIL"
+          python -c "from modules.sound_manifest import load_sound_config; print('sound_manifest OK')" || echo "sound_manifest FAIL"
+          python -c "from modules.network import get_lan_ip; print('network OK')" || echo "network FAIL"
+          python -c "from modules.scoring import is_similar_guess; print('scoring OK')" || echo "scoring FAIL"
+
+      - name: JS syntax check (node --check)
+        id: js_check
+        run: |
+          echo "## 📜 JavaScript Syntax" >> $GITHUB_STEP_SUMMARY
+          FAIL=0
+          for f in static/app.js static/canvas.js static/storage.js static/sound-loader.js static/sound-player.js static/voice.js; do
+            if node --check "$f" 2>err.log; then
+              echo "✅ $f" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ $f" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              cat err.log >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              FAIL=1
+            fi
+          done
+          exit $FAIL
+
+      - name: JS lint (quick-lint-js)
+        id: js_lint
+        continue-on-error: true
+        run: |
+          echo "## 🔍 JS Lint" >> $GITHUB_STEP_SUMMARY
+          quick-lint-js static/app.js static/canvas.js static/storage.js static/sound-loader.js static/sound-player.js static/voice.js 2>&1 | tee js_lint.log || true
+
+      - name: Run unittest (test_features.py)
+        id: unit_test
+        run: |
+          echo "## 🧪 Unit Tests" >> $GITHUB_STEP_SUMMARY
+          python -m unittest test_features.py -v 2>&1 | tee unittest.log || true
+
+      - name: Run diagnostic (test_multiguess.py --no-server)
+        id: diag
+        continue-on-error: true
+        run: |
+          echo "## 🩺 Diagnostic (no server)" >> $GITHUB_STEP_SUMMARY
+          python test_multiguess.py --no-server 2>&1 | tee diag.log || true
+
+      - name: Runtime test (spawn server + curl)
+        id: runtime
+        run: |
+          echo "## 🌐 Runtime HTTP Tests" >> $GITHUB_STEP_SUMMARY
+
+          # Spawn server in background
+          python app.py > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "Server started PID=$SERVER_PID"
+          sleep 5
+
+          # Detect port from log
+          PORT=$(grep -oP 'Local:\s+http://127\.0\.0\.1:\K\d+' server.log | head -1)
+          if [ -z "$PORT" ]; then
+            echo "❌ Server tidak spawn / port tidak terdeteksi" >> $GITHUB_STEP_SUMMARY
+            cat server.log >> $GITHUB_STEP_SUMMARY
+            kill $SERVER_PID 2>/dev/null
+            exit 1
+          fi
+          echo "✅ Server running on port $PORT" >> $GITHUB_STEP_SUMMARY
+
+          # Test endpoints
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Endpoint Tests" >> $GITHUB_STEP_SUMMARY
+
+          test_endpoint() {
+            local path="$1"
+            local expected="$2"
+            local code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT$path")
+            if [ "$code" = "$expected" ]; then
+              echo "✅ GET $path → $code" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ GET $path → $code (expected $expected)" >> $GITHUB_STEP_SUMMARY
+              return 1
+            fi
+          }
+
+          test_endpoint "/" "200"
+          test_endpoint "/static/socket.io.min.js" "200"
+          test_endpoint "/static/app.js" "200"
+          test_endpoint "/static/storage.js" "200"
+          test_endpoint "/static/voice.js" "200"
+          test_endpoint "/api/sound-manifest" "200"
+          test_endpoint "/Sound/CorrectAnswer/cr_wow.mp3" "200"
+
+          # Check Cache-Control header
+          CC=$(curl -sI "http://127.0.0.1:$PORT/" | grep -i "cache-control" | head -1)
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Headers" >> $GITHUB_STEP_SUMMARY
+          echo "- Cache-Control: $CC" >> $GITHUB_STEP_SUMMARY
+
+          kill $SERVER_PID 2>/dev/null
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Server Log (last 30 lines)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -30 server.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Ruff lint (report only)
+        id: ruff
+        continue-on-error: true
+        run: |
+          echo "## 🐶 Ruff Lint" >> $GITHUB_STEP_SUMMARY
+          ruff check . 2>&1 | tee ruff.log | tail -20 >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Generate reports.md
+        if: always()
+        run: |
+          cat > reports.md << 'EOF'
+          # MultiGuess Test Report
+
+          **Run ID**: ${{ github.run_id }}
+          **Commit**: ${{ github.sha }}
+          **Ref**: ${{ github.ref }}
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Summary
+
+          | Check | Status |
+          |-------|--------|
+          | Python Syntax | ${{ steps.py_syntax.outcome }} |
+          | Python Import | ${{ steps.py_import.outcome }} |
+          | JS Syntax | ${{ steps.js_check.outcome }} |
+          | JS Lint | ${{ steps.js_lint.outcome }} |
+          | Unit Test | ${{ steps.unit_test.outcome }} |
+          | Diagnostic | ${{ steps.diag.outcome }} |
+          | Runtime | ${{ steps.runtime.outcome }} |
+          | Ruff | ${{ steps.ruff.outcome }} |
+
+          ## Full Python Syntax Log
+
+          ```
+          EOF
+          cat py_syntax.log >> reports.md 2>/dev/null || echo "(no log)" >> reports.md
+          cat >> reports.md << 'EOF'
+          ```
+
+          ## Unit Test Output
+
+          ```
+          EOF
+          cat unittest.log >> reports.md 2>/dev/null || echo "(no log)" >> reports.md
+          cat >> reports.md << 'EOF'
+          ```
+
+          ## Diagnostic Report
+
+          ```
+          EOF
+          cat report.txt >> reports.md 2>/dev/null || echo "(no report.txt)" >> reports.md
+          cat >> reports.md << 'EOF'
+          ```
+
+          ## Server Log
+
+          ```
+          EOF
+          cat server.log >> reports.md 2>/dev/null || echo "(no server log)" >> reports.md
+          cat >> reports.md << 'EOF'
+          ```
+
+          ## Ruff Lint
+
+          ```
+          EOF
+          cat ruff.log >> reports.md 2>/dev/null || echo "(no ruff log)" >> reports.md
+          cat >> reports.md << 'EOF'
+          ```
+          EOF
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ github.run_id }}
+          path: |
+            reports.md
+            report.txt
+            server.log
+            py_syntax.log
+            unittest.log
+            diag.log
+            ruff.log
+            js_lint.log
+          retention-days: 30
