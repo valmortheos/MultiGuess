@@ -4,38 +4,26 @@ const SoundPlayer = (function() {
     let isSoundEnabled = true;
     const bufferCache = new Map(); // path -> AudioBuffer
 
-    let SOUND_CATEGORIES = {
-        'Censored': ['Censored/cn_boom.mp3'],
-        'CorrectAnswer': ['CorrectAnswer/cr_wow.mp3'],
-        'FailedRound': ['FailedRound/fl_sponge.mp3'],
-        'Random': [
-            'Random/rd_ack.mp3',
-            'Random/rd_ahh.mp3',
-            'Random/rd_laugh.mp3',
-            'Random/rd_meow.mp3',
-            'Random/rd_metalclang.mp3',
-            'Random/rd_taco.mp3'
-        ],
-        'TimeRemaining': ['TimeRemaining/tm_sponge.mp3'],
-        'WinnerScore': ['WinnerScore/ws_dubistgut.mp3'],
-        'WrongAnswer': ['WrongAnswer/wg_fahh.mp3', 'WrongAnswer/wg_jokowi.mp3'],
-        'YourTurn': ['YourTurn/yt_amongus.mp3']
-    };
+    let soundConfig = null;
 
     function loadSoundConfig() {
         fetch('/api/sound-config')
             .then(res => {
-                if (!res.ok) throw new Error('Failed to load sound config');
+                if (!res.ok) throw new Error(`HTTP error ${res.status}`);
                 return res.json();
             })
             .then(data => {
-                if (data && data.categories) {
-                    SOUND_CATEGORIES = data.categories;
-                    console.log('[SoundPlayer] Sound config loaded dynamically:', SOUND_CATEGORIES);
+                if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                    soundConfig = data;
+                    console.log('[SoundPlayer] Sound config loaded dynamically:', soundConfig);
+                } else {
+                    console.warn('[SoundPlayer] Sound config response empty, disabling soundConfig.');
+                    soundConfig = null;
                 }
             })
             .catch(err => {
-                console.warn('[SoundPlayer] Failed to load sound config, using hardcoded fallback:', err);
+                console.error('[SoundPlayer] Failed to load sound config:', err);
+                soundConfig = null;
             });
     }
 
@@ -77,6 +65,41 @@ const SoundPlayer = (function() {
         return isSoundEnabled;
     }
 
+    function playFallbackTone(category) {
+        if (!audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) audioCtx = new AudioContextClass();
+        }
+        if (!audioCtx) return;
+
+        try {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const freqMap = (soundConfig && soundConfig.fallback_freq) ? soundConfig.fallback_freq : {};
+            const freq = freqMap[category] || 440;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+            console.log('[SoundPlayer] Played fallback tone for category:', category, 'freq:', freq);
+        } catch (err) {
+            console.error('[SoundPlayer] Fallback tone playback error:', err);
+        }
+    }
+
     async function getAudioBuffer(path) {
         if (bufferCache.has(path)) {
             return bufferCache.get(path);
@@ -93,9 +116,10 @@ const SoundPlayer = (function() {
         if (!blob) {
             try {
                 const res = await fetch(`/Sound/${path}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 blob = await res.blob();
             } catch (err) {
-                console.warn('[SoundPlayer] Failed to fetch sound fallback:', path, err);
+                console.warn('[SoundPlayer] Failed to fetch sound file:', path, err);
                 return null;
             }
         }
@@ -106,7 +130,7 @@ const SoundPlayer = (function() {
             bufferCache.set(path, decodedBuffer);
             return decodedBuffer;
         } catch (err) {
-            console.warn('[SoundPlayer] Failed to decode audio data for path:', path, err);
+            console.error('[SoundPlayer] Error decoding audio data for path:', path, err);
             return null;
         }
     }
@@ -122,9 +146,8 @@ const SoundPlayer = (function() {
 
     async function getUserRandomSounds(userId) {
         let stored = await DB.get('user_random_sounds', userId);
-        const randomPool = SOUND_CATEGORIES.Random || [];
+        const randomPool = (soundConfig && soundConfig.categories) ? (soundConfig.categories.Random || []) : [];
         if (stored && stored.sounds && stored.sounds.length === 3) {
-            // Ensure stored sounds exist in current randomPool
             const valid = stored.sounds.every(s => randomPool.includes(s));
             if (valid) return stored.sounds;
         }
@@ -142,7 +165,7 @@ const SoundPlayer = (function() {
         try {
             const buffer = await getAudioBuffer(targetPath);
             if (!buffer || !audioCtx) {
-                console.warn('[sound] playByPath buffer null for path:', targetPath);
+                console.warn('[sound] playByPath buffer null or AudioContext unavailable for path:', targetPath);
                 return;
             }
 
@@ -161,7 +184,7 @@ const SoundPlayer = (function() {
 
             source.start(0);
         } catch (err) {
-            console.warn('[SoundPlayer] Error playing sound path:', targetPath, err);
+            console.error('[SoundPlayer] Error playing sound path:', targetPath, err);
         }
     }
 
@@ -169,17 +192,31 @@ const SoundPlayer = (function() {
         console.log('[sound]', category, 'unlocked=', audioUnlocked);
         if (!isSoundEnabled) return;
 
+        if (!soundConfig || !soundConfig.categories) {
+            console.warn('[SoundPlayer] soundConfig unavailable, skipping playback for category:', category);
+            return;
+        }
+
         let targetPath = null;
         if (category === 'Random') {
             const currentUserId = userId || getOrCreateUserId();
             const userSounds = await getUserRandomSounds(currentUserId);
-            targetPath = userSounds[Math.floor(Math.random() * userSounds.length)];
-        } else if (SOUND_CATEGORIES[category]) {
-            const options = SOUND_CATEGORIES[category];
-            targetPath = options[Math.floor(Math.random() * options.length)];
+            if (userSounds && userSounds.length > 0) {
+                targetPath = userSounds[Math.floor(Math.random() * userSounds.length)];
+            }
+        } else if (soundConfig.categories[category]) {
+            const options = soundConfig.categories[category];
+            if (options && options.length > 0) {
+                targetPath = options[Math.floor(Math.random() * options.length)];
+            }
         }
 
-        if (!targetPath) return;
+        if (!targetPath) {
+            console.warn('[SoundPlayer] No targetPath found for category:', category, 'playing fallback tone');
+            playFallbackTone(category);
+            return;
+        }
+
         await playByPath(targetPath);
     }
 
@@ -187,6 +224,7 @@ const SoundPlayer = (function() {
         init: init,
         play: play,
         playByPath: playByPath,
+        playFallbackTone: playFallbackTone,
         getUserRandomSounds: getUserRandomSounds,
         setSoundEnabled: setSoundEnabled,
         getSoundEnabled: getSoundEnabled
