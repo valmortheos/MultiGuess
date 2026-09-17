@@ -30,7 +30,7 @@ const SoundPlayer = (function() {
     function init() {
         loadSoundConfig();
         // Unlock AudioContext on first user gesture for ALL clients
-        const unlockEvents = ['pointerdown', 'touchstart', 'click'];
+        const unlockEvents = ['pointerdown', 'touchstart', 'click', 'keydown'];
         const unlockHandler = () => {
             if (!audioCtx) {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -38,15 +38,32 @@ const SoundPlayer = (function() {
                     audioCtx = new AudioContextClass();
                 }
             }
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
+            if (audioCtx) {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                // Play a silent buffer inline in the gesture handler — required by
+                // Chrome Android / iOS Safari to actually mark the context unlocked.
+                try {
+                    const silentBuffer = audioCtx.createBuffer(1, 1, 22050);
+                    const src = audioCtx.createBufferSource();
+                    src.buffer = silentBuffer;
+                    src.connect(audioCtx.destination);
+                    src.start(0);
+                } catch (e) { /* ignore */ }
+
+                if (audioCtx.state === 'running') {
+                    audioUnlocked = true;
+                    console.log('[SoundPlayer] AudioContext unlocked successfully.');
+                    unlockEvents.forEach(evt => document.removeEventListener(evt, unlockHandler, true));
+                }
+                // If still not 'running' (e.g. still 'suspended'), we deliberately
+                // keep the listeners attached so the NEXT gesture retries unlocking
+                // instead of giving up after one failed attempt.
             }
-            audioUnlocked = true;
-            console.log('[SoundPlayer] AudioContext unlocked successfully.');
-            unlockEvents.forEach(evt => document.removeEventListener(evt, unlockHandler));
         };
 
-        unlockEvents.forEach(evt => document.addEventListener(evt, unlockHandler, { once: true, capture: true }));
+        unlockEvents.forEach(evt => document.addEventListener(evt, unlockHandler, { capture: true }));
 
         // Load preference
         DB.get('settings', 'sound_effects').then(val => {
@@ -188,11 +205,17 @@ const SoundPlayer = (function() {
         }
     }
 
-    async function play(category, userId = null) {
+    async function play(category, userId = null, retriesLeft = 5) {
         console.log('[sound]', category, 'unlocked=', audioUnlocked);
         if (!isSoundEnabled) return;
 
         if (!soundConfig || !soundConfig.categories) {
+            if (retriesLeft > 0) {
+                // soundConfig fetch likely still in-flight (race on page load) — wait and retry
+                // instead of silently dropping this sound event.
+                setTimeout(() => play(category, userId, retriesLeft - 1), 200);
+                return;
+            }
             console.warn('[SoundPlayer] soundConfig unavailable, skipping playback for category:', category);
             return;
         }
