@@ -60,3 +60,35 @@ def get_sound_manifest():
         # Check if files count or directory mtime roughly matches
         return cached
     return generate_sound_manifest()
+
+# [v2.2.0-NEW] Sound Config Loader from JSON
+DEFAULT_SOUND_CONFIG = {
+    "version": "1.0",
+    "categories": {
+        "Censored": ["Censored/cn_boom.mp3"],
+        "CorrectAnswer": ["CorrectAnswer/cr_wow.mp3"],
+        "FailedRound": ["FailedRound/fl_sponge.mp3"],
+        "Random": [
+            "Random/rd_ack.mp3", "Random/rd_ahh.mp3", "Random/rd_laugh.mp3",
+            "Random/rd_meow.mp3", "Random/rd_metalclang.mp3", "Random/rd_taco.mp3"
+        ],
+        "TimeRemaining": ["TimeRemaining/tm_sponge.mp3"],
+        "WinnerScore": ["WinnerScore/ws_dubistgut.mp3"],
+        "WrongAnswer": ["WrongAnswer/wg_fahh.mp3", "WrongAnswer/wg_jokowi.mp3"],
+        "YourTurn": ["YourTurn/yt_amongus.mp3"]
+    },
+    "fallback_freq": {
+        "Censored": 110, "CorrectAnswer": 880, "FailedRound": 165, "Random": 520,
+        "TimeRemaining": 330, "WinnerScore": 1046, "WrongAnswer": 220, "YourTurn": 660
+    }
+}
+
+def load_sound_config():
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'sound_config.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[SoundManifest] Error loading sound_config.json: {e}")
+    return DEFAULT_SOUND_CONFIG

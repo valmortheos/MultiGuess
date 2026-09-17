@@ -4,11 +4,11 @@ const SoundPlayer = (function() {
     let isSoundEnabled = true;
     const bufferCache = new Map(); // path -> AudioBuffer
 
-    const SOUND_CATEGORIES = {
+    let SOUND_CATEGORIES = {
         'Censored': ['Censored/cn_boom.mp3'],
         'CorrectAnswer': ['CorrectAnswer/cr_wow.mp3'],
         'FailedRound': ['FailedRound/fl_sponge.mp3'],
-        'RandomAll': [
+        'Random': [
             'Random/rd_ack.mp3',
             'Random/rd_ahh.mp3',
             'Random/rd_laugh.mp3',
@@ -22,7 +22,25 @@ const SoundPlayer = (function() {
         'YourTurn': ['YourTurn/yt_amongus.mp3']
     };
 
+    function loadSoundConfig() {
+        fetch('/api/sound-config')
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load sound config');
+                return res.json();
+            })
+            .then(data => {
+                if (data && data.categories) {
+                    SOUND_CATEGORIES = data.categories;
+                    console.log('[SoundPlayer] Sound config loaded dynamically:', SOUND_CATEGORIES);
+                }
+            })
+            .catch(err => {
+                console.warn('[SoundPlayer] Failed to load sound config, using hardcoded fallback:', err);
+            });
+    }
+
     function init() {
+        loadSoundConfig();
         // Unlock AudioContext on first user gesture for ALL clients
         const unlockEvents = ['pointerdown', 'touchstart', 'click'];
         const unlockHandler = () => {
@@ -104,12 +122,15 @@ const SoundPlayer = (function() {
 
     async function getUserRandomSounds(userId) {
         let stored = await DB.get('user_random_sounds', userId);
+        const randomPool = SOUND_CATEGORIES.Random || [];
         if (stored && stored.sounds && stored.sounds.length === 3) {
-            return stored.sounds;
+            // Ensure stored sounds exist in current randomPool
+            const valid = stored.sounds.every(s => randomPool.includes(s));
+            if (valid) return stored.sounds;
         }
 
-        const all = [...SOUND_CATEGORIES.RandomAll];
-        const picked = shuffle(all).slice(0, 3);
+        const all = [...randomPool];
+        const picked = shuffle(all).slice(0, Math.min(3, all.length));
         await DB.set('user_random_sounds', userId, { userId, sounds: picked });
         return picked;
     }

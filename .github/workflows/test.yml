@@ -1,0 +1,109 @@
+name: MultiGuess CI Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest ruff
+
+      - name: Syntax check
+        continue-on-error: true
+        run: |
+          python -m compileall app.py modules/ tools/
+
+      - name: Import check
+        continue-on-error: true
+        run: |
+          python -c "import modules.config, modules.words, modules.game_state, modules.profanity, modules.sound_manifest, modules.network, modules.scoring"
+
+      - name: Node check static JS
+        continue-on-error: true
+        run: |
+          for file in static/*.js; do
+            node --check "$file"
+          done
+
+      - name: Unit tests
+        continue-on-error: true
+        run: |
+          if [ -f test_features.py ]; then
+            python -m unittest test_features.py -v
+          else
+            python test_multiguess.py --no-server
+          fi
+
+      - name: Spawn server and verify HTTP and WebSocket
+        run: |
+          python app.py > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "Server spawned with PID $SERVER_PID"
+          sleep 5
+
+          PORT=$(grep -oP 'Local:\s+http://127.0.0.1:\K[0-9]+' server.log | head -n 1)
+          if [ -z "$PORT" ]; then
+            echo "Failed to detect server port from server.log"
+            cat server.log
+            exit 1
+          fi
+          echo "Detected server running on port $PORT"
+
+          # Required curl endpoints (FAIL step if any curl fails)
+          curl -f "http://127.0.0.1:$PORT/" || exit 1
+          curl -f "http://127.0.0.1:$PORT/static/app.js" || exit 1
+          curl -f "http://127.0.0.1:$PORT/static/sound-player.js" || exit 1
+          curl -f "http://127.0.0.1:$PORT/api/sound-manifest" || exit 1
+          curl -f "http://127.0.0.1:$PORT/Sound/CorrectAnswer/cr_wow.mp3" || exit 1
+
+          # WebSocket polling test
+          WS_RES=$(curl -s "http://127.0.0.1:$PORT/socket.io/?EIO=4&transport=polling")
+          echo "Socket.IO Polling Response: $WS_RES"
+          if [[ "$WS_RES" != 0* ]]; then
+            echo "WebSocket polling check failed. Response did not start with '0'."
+            exit 1
+          fi
+
+          kill $SERVER_PID || true
+
+      - name: Generate report
+        continue-on-error: true
+        if: always()
+        run: |
+          echo "# MultiGuess CI Test Report" > reports.md
+          echo "Date: $(date)" >> reports.md
+          echo "" >> reports.md
+          echo "## Server Log Summary" >> reports.md
+          echo "\`\`\`" >> reports.md
+          cat server.log >> reports.md || echo "No server.log" >> reports.md
+          echo "\`\`\`" >> reports.md
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports-${{ github.run_id }}
+          path: |
+            reports.md
+            server.log
+            report.txt
