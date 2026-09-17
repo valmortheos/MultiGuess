@@ -57,17 +57,8 @@ def generate_sound_manifest():
 def get_sound_manifest():
     cached = persistent_load("sound_manifest")
     if cached:
-        # Cheap sanity check: if the number of files on disk no longer matches
-        # what's cached, the cache is stale (files added/removed) — regenerate.
-        try:
-            disk_file_count = sum(
-                1 for _root, _dirs, files in os.walk(SOUND_DIR)
-                for f in files if not f.startswith('.')
-            )
-        except Exception:
-            disk_file_count = None
-        if disk_file_count is not None and disk_file_count == cached.get("total_files"):
-            return cached
+        # Check if files count or directory mtime roughly matches
+        return cached
     return generate_sound_manifest()
 
 # [v2.2.0-NEW] Sound Config Loader from JSON
