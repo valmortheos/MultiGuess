@@ -5,6 +5,7 @@ const SoundPlayer = (function() {
     const bufferCache = new Map(); // path -> AudioBuffer
 
     let soundConfig = null;
+    let pendingPlaybackQueue = [];
 
     function loadSoundConfig() {
         fetch('/api/sound-config')
@@ -16,6 +17,7 @@ const SoundPlayer = (function() {
                 if (data && typeof data === 'object' && Object.keys(data).length > 0) {
                     soundConfig = data;
                     console.log('[SoundPlayer] Sound config loaded dynamically:', soundConfig);
+                    processPendingQueue();
                 } else {
                     console.warn('[SoundPlayer] Sound config response empty, disabling soundConfig.');
                     soundConfig = null;
@@ -25,6 +27,20 @@ const SoundPlayer = (function() {
                 console.error('[SoundPlayer] Failed to load sound config:', err);
                 soundConfig = null;
             });
+    }
+
+    function processPendingQueue() {
+        if (pendingPlaybackQueue.length > 0 && soundConfig) {
+            console.log(`[SoundPlayer] Processing ${pendingPlaybackQueue.length} queued play requests...`);
+            while (pendingPlaybackQueue.length > 0) {
+                const item = pendingPlaybackQueue.shift();
+                if (item.type === 'play') {
+                    play(item.category, item.userId);
+                } else if (item.type === 'playByPath') {
+                    playByPath(item.targetPath);
+                }
+            }
+        }
     }
 
     function init() {
@@ -176,18 +192,28 @@ const SoundPlayer = (function() {
     }
 
     async function playByPath(targetPath) {
+        const startTime = performance.now();
         console.log('[sound] playByPath', targetPath, 'unlocked=', audioUnlocked);
         if (!isSoundEnabled || !targetPath) return;
+
+        if (!audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) audioCtx = new AudioContextClass();
+        }
+
+        if (audioCtx && audioCtx.state === 'suspended') {
+            try {
+                await audioCtx.resume();
+            } catch (e) {
+                console.warn('[SoundPlayer] audioCtx.resume() failed:', e);
+            }
+        }
 
         try {
             const buffer = await getAudioBuffer(targetPath);
             if (!buffer || !audioCtx) {
                 console.warn('[sound] playByPath buffer null or AudioContext unavailable for path:', targetPath);
                 return;
-            }
-
-            if (audioCtx.state === 'suspended') {
-                await audioCtx.resume();
             }
 
             const source = audioCtx.createBufferSource();
@@ -200,6 +226,7 @@ const SoundPlayer = (function() {
             gainNode.connect(audioCtx.destination);
 
             source.start(0);
+            console.log(`[SoundPlayer] Played sound ${targetPath} in ${(performance.now() - startTime).toFixed(2)}ms`);
         } catch (err) {
             console.error('[SoundPlayer] Error playing sound path:', targetPath, err);
         }
@@ -210,13 +237,8 @@ const SoundPlayer = (function() {
         if (!isSoundEnabled) return;
 
         if (!soundConfig || !soundConfig.categories) {
-            if (retriesLeft > 0) {
-                // soundConfig fetch likely still in-flight (race on page load) — wait and retry
-                // instead of silently dropping this sound event.
-                setTimeout(() => play(category, userId, retriesLeft - 1), 200);
-                return;
-            }
-            console.warn('[SoundPlayer] soundConfig unavailable, skipping playback for category:', category);
+            console.warn('[SoundPlayer] soundConfig not yet ready, queueing playback for category:', category);
+            pendingPlaybackQueue.push({ type: 'play', category, userId });
             return;
         }
 

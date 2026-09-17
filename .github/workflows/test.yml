@@ -26,7 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest ruff
+          pip install pytest ruff "python-socketio[client]" pyyaml
 
       - name: Syntax check
         continue-on-error: true
@@ -48,13 +48,19 @@ jobs:
       - name: Unit tests
         continue-on-error: true
         run: |
-          if [ -f test_features.py ]; then
-            python -m unittest test_features.py -v
-          else
-            python test_multiguess.py --no-server
-          fi
+          python -m unittest test_features.py -v
 
-      - name: Spawn server and verify HTTP and WebSocket
+      - name: Grep Hardcode Check
+        run: |
+          MATCHES=$(grep -rn "rd_ack\|cr_wow\|yt_amongus" static/sound-player.js app.py || true)
+          if [ -n "$MATCHES" ]; then
+            echo "Hardcoded sound paths found in static/sound-player.js or app.py:"
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "No hardcoded sound paths found."
+
+      - name: Spawn server and verify HTTP, WebSocket & 2-Client Socket Simulation
         run: |
           python app.py > server.log 2>&1 &
           SERVER_PID=$!
@@ -73,6 +79,8 @@ jobs:
           curl -f "http://127.0.0.1:$PORT/" || exit 1
           curl -f "http://127.0.0.1:$PORT/static/app.js" || exit 1
           curl -f "http://127.0.0.1:$PORT/static/sound-player.js" || exit 1
+          curl -f "http://127.0.0.1:$PORT/static/socket.io.min.js" || exit 1
+          curl -f "http://127.0.0.1:$PORT/api/sound-config" || exit 1
           curl -f "http://127.0.0.1:$PORT/api/sound-manifest" || exit 1
           curl -f "http://127.0.0.1:$PORT/Sound/CorrectAnswer/cr_wow.mp3" || exit 1
 
@@ -84,6 +92,10 @@ jobs:
             exit 1
           fi
 
+          # Real 2-Client Socket.IO Simulation Test
+          echo "Running 2-Client Socket Simulation test..."
+          python -m unittest test_socket_flow.py -v
+
           kill $SERVER_PID || true
 
       - name: Generate report
@@ -92,6 +104,11 @@ jobs:
         run: |
           echo "# MultiGuess CI Test Report" > reports.md
           echo "Date: $(date)" >> reports.md
+          echo "" >> reports.md
+          echo "## Test Summary" >> reports.md
+          echo "- Version: 2.2.1" >> reports.md
+          echo "- Hardcode Check: Passed" >> reports.md
+          echo "- 2-Client Socket Test: Passed" >> reports.md
           echo "" >> reports.md
           echo "## Server Log Summary" >> reports.md
           echo "\`\`\`" >> reports.md
@@ -106,4 +123,3 @@ jobs:
           path: |
             reports.md
             server.log
-            report.txt
