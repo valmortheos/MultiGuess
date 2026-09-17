@@ -28,6 +28,15 @@ jobs:
           pip install -r requirements.txt
           pip install pytest ruff "python-socketio[client]" pyyaml
 
+      - name: Assert Sound Asset Files Count
+        run: |
+          COUNT=$(find Sound -name '*.mp3' | wc -l)
+          echo "Found $COUNT mp3 files in Sound/"
+          if [ "$COUNT" -ne 14 ]; then
+            echo "Expected 14 mp3 files in Sound/, found $COUNT"
+            exit 1
+          fi
+
       - name: Syntax check
         continue-on-error: true
         run: |

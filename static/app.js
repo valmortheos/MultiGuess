@@ -699,7 +699,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Centralized Play Sound Receiver (v2.0.2)
     window.AppSocket.on('play_sound', function(payload) {
-        console.log('[socket] play_sound received payload:', payload);
+        console.log('[SoundDebug] play_sound received:', payload);
         if (!payload || !payload.type) return;
         const type = payload.type;
         const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : null);
