@@ -4,7 +4,8 @@
 // [v2.0.3-OLD] const APP_VERSION = "2.0.3";
 // [v2.0.4-OLD] const APP_VERSION = "2.0.4";
 // [v2.0.5-OLD] const APP_VERSION = "2.0.5";
-const APP_VERSION = "2.2.0";
+// [v2.2.0-OLD] const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.2.1";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -129,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             badge.className = 'slot-badge';
             badge.textContent = '!';
             const nameSpan = document.createElement('span');
-            nameSpan.textContent = `${username}: ${text}`;
+            nameSpan.textContent = text ? `${username}: ${text}` : username;
             card.appendChild(badge);
             card.appendChild(nameSpan);
         } else {
