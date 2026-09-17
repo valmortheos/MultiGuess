@@ -73,6 +73,7 @@ const SoundLoader = (function() {
         const totalBytes = manifest.total_size || 1;
         let downloadedBytes = 0;
         let completedFiles = 0;
+        let failedFiles = 0;
 
         const speedSamples = [];
         let lastTimestamp = performance.now();
@@ -124,22 +125,33 @@ const SoundLoader = (function() {
                 if (isSkipped) break;
 
                 const blob = new Blob(chunks, { type: 'audio/mp3' });
-                await DB.putSound(fileInfo.path, blob, fileInfo.size, fileInfo.hash);
-                completedFiles++;
+                const putSuccess = await DB.putSound(fileInfo.path, blob, fileInfo.size, fileInfo.hash);
+                if (putSuccess) {
+                    completedFiles++;
+                } else {
+                    failedFiles++;
+                    console.warn(`[SoundLoader] Failed to save sound to DB: ${fileInfo.path}`);
+                }
 
                 const percent = Math.min(100, Math.floor((downloadedBytes / totalBytes) * 100));
                 if (progressBarFill) progressBarFill.style.width = `${percent}%`;
                 if (statusText) statusText.textContent = `Menyiapkan audio... ${completedFiles}/${totalFiles} file (${percent}%)`;
             } catch (err) {
+                failedFiles++;
                 console.warn(`[SoundLoader] Failed to download audio file ${fileInfo.path}:`, err);
             }
         }
 
         if (!isSkipped) {
-            await DB.set('sound_meta', 'version', { key: 'version', value: manifest.version, timestamp: Date.now() });
-            if (progressBarFill) progressBarFill.style.width = '100%';
-            if (statusText) statusText.textContent = 'Audio siap!';
-            setTimeout(hideLoader, 300);
+            if (failedFiles === 0) {
+                await DB.set('sound_meta', 'version', { key: 'version', value: manifest.version, timestamp: Date.now() });
+                if (progressBarFill) progressBarFill.style.width = '100%';
+                if (statusText) statusText.textContent = 'Audio siap!';
+            } else {
+                console.warn(`[SoundLoader] Audio loading partially complete: ${failedFiles} files failed. Version not cached.`);
+                if (statusText) statusText.textContent = `Audio siap sebagian (${failedFiles} gagal)`;
+            }
+            setTimeout(hideLoader, 500);
         }
     }
 

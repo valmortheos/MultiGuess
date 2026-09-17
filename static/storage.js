@@ -95,13 +95,20 @@ const DB = {
     },
 
     async putSound(path, blob, size, hash) {
-        if (!this.db) return;
-        try {
-            const tx = this.db.transaction('sounds', 'readwrite');
-            tx.objectStore('sounds').put({ path, blob, size, hash });
-        } catch (err) {
-            console.warn("IndexedDB putSound failed", err);
-        }
+        if (!this.db) return false;
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction('sounds', 'readwrite');
+                const req = tx.objectStore('sounds').put({ path, blob, size, hash });
+                req.onerror = () => resolve(false);
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => resolve(false);
+                tx.onabort = () => resolve(false);
+            } catch (err) {
+                console.warn("IndexedDB putSound failed", err);
+                resolve(false);
+            }
+        });
     }
 };
 

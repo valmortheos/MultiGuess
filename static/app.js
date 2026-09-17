@@ -742,6 +742,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                 slot: payload.slot || 1,
                 variant: 'random'
             });
+        } else {
+            console.warn('[socket] Unrecognized sound type:', type, 'attempting default SoundPlayer.play()');
+            vibrate(20);
+            SoundPlayer.play(type);
         }
     });
 
