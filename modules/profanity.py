@@ -4,49 +4,48 @@ import json
 import time
 import unicodedata
 
-# Profanity word set
-PROFANITY_LIST = [
-    # Bahasa Indonesia
-    'anjing', 'anjir', 'anjay', 'asu', 'babi', 'bangsat', 'kampret',
-    'monyet', 'tolol', 'goblok', 'bego', 'dungu', 'gila', 'kontol',
-    'memek', 'ngentot', 'peli', 'jembut', 'pepek', 'pantek', 'peler',
-
-    # Bahasa Sunda
-    'aing', 'maneh', 'sia', 'kehed', 'belegug', 'modar', 'koplok',
-    'bagong', 'pekok', 'jurig', 'sontoloyo',
-
-    # Bahasa Jawa
-    'jancuk', 'jancok', 'cuk', 'ndasmu', 'raimu', 'matamu', 'silit',
-    'sundel', 'taek', 'entut', 'thuyul', 'jangkrik',
-
-    # Bahasa Inggris
-    'fuck', 'shit', 'bitch', 'asshole', 'cunt', 'pussy', 'dick',
-    'cock', 'motherfucker', 'bastard', 'wanker', 'bollocks', 'damn',
-    'crap', 'whore', 'slut', 'nigger', 'chink', 'retard', 'moron',
-    'idiot', 'dumbass', 'prick', 'twat'
+# [v2.2.0-NEW] Hardcoded minimal fallbacks
+HARDCODED_EXACT = [
+    'anjing', 'bangsat', 'babi', 'kampret', 'kontol', 'memek',
+    'ngentot', 'pepek', 'tai', 'titit', 'jancok', 'asw', 'asu'
 ]
-
-PROFANITY_SET = set(word.lower() for word in PROFANITY_LIST)
+HARDCODED_SUBSTRING = ['anjeng', 'jancuk', 'cok', 'tll', 'bgsd']
 
 LEET_MAP = str.maketrans({
-    '4': 'a',
-    '@': 'a',
-    '3': 'e',
-    '1': 'i',
-    '!': 'i',
     '0': 'o',
+    '1': 'i',
+    '3': 'e',
+    '4': 'a',
     '5': 's',
-    '$': 's',
-    '7': 't'
+    '7': 't',
+    '@': 'a',
+    '$': 's'
 })
 
-def collapse_repeats(s: str) -> str:
-    res = []
-    for char in s:
-        if len(res) >= 1 and res[-1] == char:
-            continue
-        res.append(char)
-    return "".join(res)
+EXACT_WORDS = set()
+SUBSTRING_WORDS = set()
+
+def reload_profanity_words():
+    global EXACT_WORDS, SUBSTRING_WORDS
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'censored_words.json')
+    exact_list = list(HARDCODED_EXACT)
+    sub_list = list(HARDCODED_SUBSTRING)
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    exact_list = data.get('exact', exact_list)
+                    sub_list = data.get('substring', sub_list)
+        except Exception as e:
+            print(f"[Profanity] Failed to load censored_words.json: {e}")
+
+    EXACT_WORDS = set(w.lower() for w in exact_list)
+    SUBSTRING_WORDS = set(w.lower() for w in sub_list)
+
+# Initial load
+reload_profanity_words()
 
 def normalize(text: str) -> str:
     if not text:
@@ -57,39 +56,31 @@ def normalize(text: str) -> str:
     text_norm = text_norm.lower()
     # 3. Leetspeak mapping
     text_norm = text_norm.translate(LEET_MAP)
-    # 4. Remove non-alphanumeric characters
-    text_norm = re.sub(r'[^a-z0-9]', '', text_norm)
-    # 5. Collapse repeated characters (e.g., anjiiiing -> anjing)
-    text_norm = collapse_repeats(text_norm)
+    # 4. Remove non-alphanumeric except whitespace
+    text_norm = re.sub(r'[^a-z0-9\s]', '', text_norm)
+    # 5. Collapse spaces
+    text_norm = re.sub(r'\s+', ' ', text_norm).strip()
     return text_norm
 
 def contains_profanity(text: str) -> tuple[bool, str | None]:
     if not text:
         return False, None
 
-    normalized_text = normalize(text)
-    if not normalized_text:
+    norm_text = normalize(text)
+    if not norm_text:
         return False, None
 
-    # Tokenized checking on raw text
-    raw_lower = text.lower()
-    words = re.findall(r'\b\w+\b', raw_lower)
+    # Check exact word boundary match
+    words = norm_text.split()
     for w in words:
-        w_norm = normalize(w)
-        for bad_word in PROFANITY_SET:
-            if normalize(bad_word) == w_norm:
-                return True, w
+        if w in EXACT_WORDS:
+            return True, w
 
-    # Full normalized string check for spaced/punctuate bypassing (e.g. "a n j i n g", "s.l.o.t")
-    for bad_word in PROFANITY_SET:
-        norm_bad = normalize(bad_word)
-        # For short words (len <= 3 like 'asu', 'cuk', 'sia'), avoid sub-string matching on long strings unless exact match
-        if len(norm_bad) <= 3:
-            if normalized_text == norm_bad:
-                return True, bad_word
-        else:
-            if norm_bad in normalized_text:
-                return True, bad_word
+    # Check substring match
+    norm_no_space = norm_text.replace(" ", "")
+    for sub in SUBSTRING_WORDS:
+        if sub in norm_text or sub in norm_no_space:
+            return True, sub
 
     return False, None
 

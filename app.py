@@ -9,7 +9,7 @@ from modules.words import pick_three_words
 from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
 from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
 from modules.game_state import RoomManager, normalize_room_code
-from modules.sound_manifest import get_sound_manifest, SOUND_DIR
+from modules.sound_manifest import get_sound_manifest, load_sound_config, SOUND_DIR
 from modules.profanity import contains_profanity, is_profane, log_moderation
 from modules.dev_bot import (
     active_dev_bots, get_active_bot, spawn_bot, remove_bot, trigger_bot_reaction
@@ -61,11 +61,12 @@ def start_next_turn(room_code):
         room_mgr.save_cache()
         return
 
-    if room['drawer_index'] >= len(room['drawer_order']):
-        room['current_round'] += 1
-        room['drawer_index'] = 0
+    # [v2.2.0-NEW] Auto-Rolling Drawer round calculation
+    human_count = room.get('human_player_count', len(human_players))
+    if human_count > 0:
+        room['current_round'] = (room['drawer_index'] // human_count) + 1
 
-    if room['current_round'] > room['settings']['total_rounds']:
+    if room['current_round'] > room['settings']['total_rounds'] or room['drawer_index'] >= len(room['drawer_order']):
         room['state'] = 'GAME_OVER'
         leaderboard = room_mgr.get_room_data(room_code)['players']
         socketio.emit('game_over', {
@@ -92,7 +93,12 @@ def start_next_turn(room_code):
     for sid in room['players']:
         room['players'][sid]['has_guessed'] = False
 
-    room['word_options'] = pick_three_words()
+    # [v2.2.0-NEW] Track and exclude used words across turns
+    used_words = room.get('used_words', set())
+    room['word_options'] = pick_three_words(exclude=used_words)
+    for word in room['word_options']:
+        used_words.add(word)
+    room['used_words'] = used_words
 
     broadcast_room_update(room_code)
     socketio.emit('clear_canvas', to=room_code)
@@ -246,6 +252,19 @@ def serve_sound(filename):
 def sound_manifest():
     manifest = get_sound_manifest()
     return jsonify(manifest)
+
+# [v2.2.0-NEW] Sound Config Endpoint
+@app.route('/api/sound-config')
+def sound_config():
+    cfg = load_sound_config()
+    if 'categories' in cfg and 'Random' in cfg['categories']:
+        valid_random = []
+        for path in cfg['categories']['Random']:
+            full_path = os.path.join(SOUND_DIR, path)
+            if os.path.exists(full_path):
+                valid_random.append(path)
+        cfg['categories']['Random'] = valid_random
+    return jsonify(cfg)
 
 # DEV MODE API ENDPOINTS
 def check_dev_mode_and_host(room_code):
@@ -474,12 +493,22 @@ def handle_start_game(data):
         emit('error_message', {'message': 'Minimal 2 pemain manusia untuk memulai permainan.'})
         return
 
-    p_sids = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
+    # [v2.2.0-NEW] Auto-Rolling Drawer order setup
     import random
-    random.shuffle(p_sids)
-    room['drawer_order'] = p_sids
+    human_count = len(human_players)
+    total_rounds = room['settings']['total_rounds']
+
+    drawer_order = []
+    for _ in range(total_rounds):
+        round_block = list(human_players)
+        random.shuffle(round_block)
+        drawer_order.extend(round_block)
+
+    room['drawer_order'] = drawer_order
+    room['human_player_count'] = human_count
     room['drawer_index'] = 0
     room['current_round'] = 1
+    room['used_words'] = set()
 
     for p_sid in room['players']:
         room['players'][p_sid]['score'] = 0
