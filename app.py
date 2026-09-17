@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
@@ -27,19 +28,35 @@ reaction_cooldowns = {}
 # User Chat Message Rate Limit Tracker: sid -> list of timestamps
 chat_timestamps = {}
 
+# Thread safety lock for room state mutations & sound emissions
+room_state_lock = threading.Lock()
+
 def broadcast_room_update(room_code):
     data = room_mgr.get_room_data(room_code)
     if data:
         socketio.emit('room_updated', data, to=room_code)
 
 def emit_play_sound(room_code, payload, target_sid=None, target_sids=None):
-    if target_sid:
-        socketio.emit('play_sound', payload, to=target_sid)
-    elif target_sids:
-        for sid in target_sids:
-            socketio.emit('play_sound', payload, to=sid)
-    else:
-        socketio.emit('play_sound', payload, to=room_code)
+    if not room_code or not payload or not isinstance(payload, dict):
+        return
+
+    room = room_mgr.get_room(room_code)
+    if not room or not room.get('players'):
+        return
+
+    if 'type' not in payload:
+        return
+
+    print(f"[emit_play_sound] room={room_code} target_sid={target_sid} target_sids={target_sids} payload={payload}")
+
+    with room_state_lock:
+        if target_sid:
+            socketio.emit('play_sound', payload, to=target_sid)
+        elif target_sids:
+            for sid in target_sids:
+                socketio.emit('play_sound', payload, to=sid)
+        else:
+            socketio.emit('play_sound', payload, to=room_code)
 
     bot = get_active_bot(room_code)
     if bot:
