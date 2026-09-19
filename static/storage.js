@@ -8,7 +8,7 @@ const DB = {
 
 const DB = {
     dbName: 'multiguess_db',
-    version: 2,
+    version: 3,
     db: null,
 
     async init() {
@@ -28,6 +28,7 @@ const DB = {
             };
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
+                const tx = e.target.transaction;
                 if (!db.objectStoreNames.contains('settings')) {
                     db.createObjectStore('settings');
                 }
@@ -37,12 +38,15 @@ const DB = {
                 if (!db.objectStoreNames.contains('stats')) {
                     db.createObjectStore('stats');
                 }
-                if (!db.objectStoreNames.contains('sounds')) {
-                    db.createObjectStore('sounds', { keyPath: 'path' });
+                if (db.objectStoreNames.contains('sounds')) {
+                    db.deleteObjectStore('sounds');
                 }
-                if (!db.objectStoreNames.contains('sound_meta')) {
-                    db.createObjectStore('sound_meta', { keyPath: 'key' });
+                if (db.objectStoreNames.contains('sound_meta')) {
+                    db.deleteObjectStore('sound_meta');
                 }
+                db.createObjectStore('sounds', { keyPath: 'path' });
+                db.createObjectStore('sound_meta', { keyPath: 'key' });
+
                 if (!db.objectStoreNames.contains('user_random_sounds')) {
                     db.createObjectStore('user_random_sounds', { keyPath: 'userId' });
                 }

@@ -2,10 +2,36 @@ const SoundPlayer = (function() {
     let audioCtx = null;
     let audioUnlocked = false;
     let isSoundEnabled = true;
+    const SOUND_CACHE_VERSION = 'v2.2.1';
     const bufferCache = new Map(); // path -> AudioBuffer
 
     let soundConfig = null;
     let pendingPlaybackQueue = [];
+
+    function ensureAudioContext() {
+        if (!audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+                audioCtx = new AudioContextClass();
+            }
+        }
+        return audioCtx;
+    }
+
+    async function fetchBlobWithCheck(path) {
+        let blob = await DB.getSound(path);
+        if (!blob) {
+            try {
+                const res = await fetch(`/Sound/${path}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                blob = await res.blob();
+            } catch (err) {
+                console.warn('[SoundPlayer] Failed to fetch sound file:', path, err);
+                return null;
+            }
+        }
+        return blob;
+    }
 
     function loadSoundConfig() {
         fetch('/api/sound-config')
@@ -43,19 +69,27 @@ const SoundPlayer = (function() {
         }
     }
 
-    function init() {
+    async function init() {
         loadSoundConfig();
+
+        // Version check for bufferCache clearing
+        try {
+            const cachedVer = await DB.get('settings', 'sound_cache_version');
+            if (cachedVer !== SOUND_CACHE_VERSION) {
+                bufferCache.clear();
+                await DB.set('settings', 'sound_cache_version', SOUND_CACHE_VERSION);
+                console.log(`[SoundDebug] bufferCache cleared for version ${SOUND_CACHE_VERSION}`);
+            }
+        } catch (e) {
+            console.warn('[SoundPlayer] Sound cache version check error:', e);
+        }
+
         // Unlock AudioContext on first user gesture for ALL clients
         const unlockEvents = ['pointerdown', 'touchstart', 'click'];
         const unlockHandler = () => {
-            if (!audioCtx) {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (AudioContextClass) {
-                    audioCtx = new AudioContextClass();
-                }
-            }
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
+            const ctx = ensureAudioContext();
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume();
             }
             audioUnlocked = true;
             console.log('[SoundPlayer] AudioContext unlocked successfully.');
@@ -82,34 +116,31 @@ const SoundPlayer = (function() {
     }
 
     function playFallbackTone(category) {
-        if (!audioCtx) {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (AudioContextClass) audioCtx = new AudioContextClass();
-        }
-        if (!audioCtx) return;
+        const ctx = ensureAudioContext();
+        if (!ctx) return;
 
         try {
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+            if (ctx.state === 'suspended') {
+                ctx.resume();
             }
 
             const freqMap = (soundConfig && soundConfig.fallback_freq) ? soundConfig.fallback_freq : {};
             const freq = freqMap[category] || 440;
 
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
 
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
 
-            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
 
             osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            gainNode.connect(ctx.destination);
 
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
+            osc.stop(ctx.currentTime + 0.3);
             console.log('[SoundPlayer] Played fallback tone for category:', category, 'freq:', freq);
         } catch (err) {
             console.error('[SoundPlayer] Fallback tone playback error:', err);
@@ -118,35 +149,26 @@ const SoundPlayer = (function() {
 
     async function getAudioBuffer(path) {
         if (bufferCache.has(path)) {
+            console.log('[SoundDebug] cache hit:', path);
             return bufferCache.get(path);
         }
 
-        if (!audioCtx) {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (AudioContextClass) audioCtx = new AudioContextClass();
-        }
+        const ctx = ensureAudioContext();
+        if (!ctx) { console.warn('[SoundDebug] no AudioContext'); return null; }
 
-        if (!audioCtx) return null;
+        const blob = await fetchBlobWithCheck(path);
+        if (!blob) { console.warn('[SoundDebug] blob null:', path); return null; }
 
-        let blob = await DB.getSound(path);
-        if (!blob) {
-            try {
-                const res = await fetch(`/Sound/${path}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                blob = await res.blob();
-            } catch (err) {
-                console.warn('[SoundPlayer] Failed to fetch sound file:', path, err);
-                return null;
-            }
-        }
+        console.log('[SoundDebug] blob size:', blob.size, 'type:', blob.type);
 
         try {
             const arrayBuffer = await blob.arrayBuffer();
-            const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
             bufferCache.set(path, decodedBuffer);
+            console.log('[SoundDebug] decoded OK:', path, decodedBuffer.duration);
             return decodedBuffer;
         } catch (err) {
-            console.error('[SoundPlayer] Error decoding audio data for path:', path, err);
+            console.error('[SoundDebug] decode FAILED for', path, err);
             return null;
         }
     }
@@ -178,22 +200,18 @@ const SoundPlayer = (function() {
         console.log('[SoundDebug] request:', targetPath);
         if (!isSoundEnabled || !targetPath) return;
 
-        if (!audioCtx) {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (AudioContextClass) audioCtx = new AudioContextClass();
-        }
+        const ctx = ensureAudioContext();
+        console.log('[SoundDebug] audioCtx.state:', ctx && ctx.state);
 
-        console.log('[SoundDebug] audioCtx.state:', audioCtx && audioCtx.state);
-
-        if (audioCtx && audioCtx.state === 'suspended') {
+        if (ctx && ctx.state === 'suspended') {
             try {
-                await audioCtx.resume();
+                await ctx.resume();
             } catch (e) {
                 console.warn('[SoundDebug] audioCtx.resume() failed:', e);
             }
         }
 
-        if (audioCtx && audioCtx.state === 'suspended') {
+        if (ctx && ctx.state === 'suspended') {
             console.warn('[SoundDebug] audioCtx state remains suspended after resume attempt, playing fallback tone');
             playFallbackTone(category || 'Random');
             return;
@@ -201,26 +219,20 @@ const SoundPlayer = (function() {
 
         try {
             const buffer = await getAudioBuffer(targetPath);
-            console.log('[SoundDebug] buffer:', {
-                exists: !!buffer,
-                duration: buffer && buffer.duration,
-                sampleRate: buffer && buffer.sampleRate
-            });
-
-            if (!buffer || !audioCtx) {
+            if (!buffer || !ctx) {
                 console.warn('[SoundDebug] playByPath buffer null or AudioContext unavailable for path:', targetPath);
                 playFallbackTone(category || 'Random');
                 return;
             }
 
-            const source = audioCtx.createBufferSource();
-            const gainNode = audioCtx.createGain();
+            const source = ctx.createBufferSource();
+            const gainNode = ctx.createGain();
 
             source.buffer = buffer;
             gainNode.gain.value = 0.7; // Default 0.7 volume
 
             source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            gainNode.connect(ctx.destination);
 
             source.start(0);
             console.log('[SoundDebug] source.start() called at', performance.now());
