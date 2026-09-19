@@ -5,7 +5,8 @@
 // [v2.0.4-OLD] const APP_VERSION = "2.0.4";
 // [v2.0.5-OLD] const APP_VERSION = "2.0.5";
 // [v2.2.0-OLD] const APP_VERSION = "2.2.0";
-const APP_VERSION = "2.2.1";
+// [v2.2.1-OLD] const APP_VERSION = "2.2.1";
+const APP_VERSION = "2.2.2";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;

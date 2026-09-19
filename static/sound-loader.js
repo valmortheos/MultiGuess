@@ -126,11 +126,11 @@ const SoundLoader = (function() {
 
                 const rawBlob = new Blob(chunks);
                 const normalizedBlob = new Blob([rawBlob], { type: 'audio/mpeg' });
-                console.log('[SoundLoader] stored type:', normalizedBlob.type, 'for', fileInfo.path);
 
                 const putSuccess = await DB.putSound(fileInfo.path, normalizedBlob, fileInfo.size, fileInfo.hash);
                 if (putSuccess) {
                     completedFiles++;
+                    console.log(`[SoundLoader] stored ${fileInfo.path} (${normalizedBlob.type})`);
                 } else {
                     failedFiles++;
                     console.warn(`[SoundLoader] Failed to save sound to DB: ${fileInfo.path}`);
