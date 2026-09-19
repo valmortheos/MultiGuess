@@ -2,7 +2,7 @@ const SoundPlayer = (function() {
     let audioCtx = null;
     let audioUnlocked = false;
     let isSoundEnabled = true;
-    const SOUND_CACHE_VERSION = 'v2.2.1';
+    const SOUND_CACHE_VERSION = 'v2.2.2';
     const bufferCache = new Map(); // path -> AudioBuffer
 
     let soundConfig = null;
@@ -34,7 +34,7 @@ const SoundPlayer = (function() {
     }
 
     function loadSoundConfig() {
-        fetch('/api/sound-config')
+        return fetch('/api/sound-config')
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP error ${res.status}`);
                 return res.json();
@@ -42,16 +42,19 @@ const SoundPlayer = (function() {
             .then(data => {
                 if (data && typeof data === 'object' && Object.keys(data).length > 0) {
                     soundConfig = data;
-                    console.log('[SoundPlayer] Sound config loaded dynamically:', soundConfig);
+                    console.log('[SoundPlayer] soundConfig loaded.', soundConfig);
                     processPendingQueue();
+                    return soundConfig;
                 } else {
                     console.warn('[SoundPlayer] Sound config response empty, disabling soundConfig.');
                     soundConfig = null;
+                    return null;
                 }
             })
             .catch(err => {
                 console.error('[SoundPlayer] Failed to load sound config:', err);
                 soundConfig = null;
+                return null;
             });
     }
 
@@ -70,7 +73,7 @@ const SoundPlayer = (function() {
     }
 
     async function init() {
-        loadSoundConfig();
+        await loadSoundConfig();
 
         // Version check for bufferCache clearing
         try {
@@ -78,7 +81,7 @@ const SoundPlayer = (function() {
             if (cachedVer !== SOUND_CACHE_VERSION) {
                 bufferCache.clear();
                 await DB.set('settings', 'sound_cache_version', SOUND_CACHE_VERSION);
-                console.log(`[SoundDebug] bufferCache cleared for version ${SOUND_CACHE_VERSION}`);
+                console.log(`[SoundPlayer] bufferCache cleared for version ${SOUND_CACHE_VERSION}`);
             }
         } catch (e) {
             console.warn('[SoundPlayer] Sound cache version check error:', e);
@@ -153,6 +156,8 @@ const SoundPlayer = (function() {
             return bufferCache.get(path);
         }
 
+        console.log('[SoundDebug] cache miss:', path);
+
         const ctx = ensureAudioContext();
         if (!ctx) { console.warn('[SoundDebug] no AudioContext'); return null; }
 
@@ -161,14 +166,19 @@ const SoundPlayer = (function() {
 
         console.log('[SoundDebug] blob size:', blob.size, 'type:', blob.type);
 
+        const startTime = performance.now();
+        console.log('[SoundDebug] decode start:', path);
+
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+            const decodeDuration = (performance.now() - startTime).toFixed(2);
             bufferCache.set(path, decodedBuffer);
-            console.log('[SoundDebug] decoded OK:', path, decodedBuffer.duration);
+            console.log(`[SoundDebug] decoded OK: ${path} (audio duration: ${decodedBuffer.duration.toFixed(2)}s, decode time: ${decodeDuration}ms)`);
             return decodedBuffer;
         } catch (err) {
-            console.error('[SoundDebug] decode FAILED for', path, err);
+            const decodeDuration = (performance.now() - startTime).toFixed(2);
+            console.error(`[SoundDebug] decode FAILED for ${path} (failed after ${decodeDuration}ms):`, err);
             return null;
         }
     }
@@ -198,7 +208,14 @@ const SoundPlayer = (function() {
 
     async function playByPath(targetPath, category = null) {
         console.log('[SoundDebug] request:', targetPath);
-        if (!isSoundEnabled || !targetPath) return;
+        if (!isSoundEnabled) {
+            console.log('[SoundDebug] playByPath exit: isSoundEnabled is false');
+            return;
+        }
+        if (!targetPath) {
+            console.warn('[SoundDebug] playByPath exit: targetPath is empty/null');
+            return;
+        }
 
         const ctx = ensureAudioContext();
         console.log('[SoundDebug] audioCtx.state:', ctx && ctx.state);
@@ -244,7 +261,10 @@ const SoundPlayer = (function() {
 
     async function play(category, userId = null) {
         console.log('[sound]', category, 'unlocked=', audioUnlocked);
-        if (!isSoundEnabled) return;
+        if (!isSoundEnabled) {
+            console.log('[SoundDebug] play exit: isSoundEnabled is false');
+            return;
+        }
 
         if (!soundConfig || !soundConfig.categories) {
             console.warn('[SoundPlayer] soundConfig not yet ready, queueing playback for category:', category);

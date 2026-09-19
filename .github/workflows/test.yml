@@ -115,7 +115,7 @@ jobs:
           echo "Date: $(date)" >> reports.md
           echo "" >> reports.md
           echo "## Test Summary" >> reports.md
-          echo "- Version: 2.2.1" >> reports.md
+          echo "- Version: 2.2.2" >> reports.md
           echo "- Hardcode Check: Passed" >> reports.md
           echo "- 2-Client Socket Test: Passed" >> reports.md
           echo "" >> reports.md
