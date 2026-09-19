@@ -124,8 +124,11 @@ const SoundLoader = (function() {
 
                 if (isSkipped) break;
 
-                const blob = new Blob(chunks, { type: 'audio/mp3' });
-                const putSuccess = await DB.putSound(fileInfo.path, blob, fileInfo.size, fileInfo.hash);
+                const rawBlob = new Blob(chunks);
+                const normalizedBlob = new Blob([rawBlob], { type: 'audio/mpeg' });
+                console.log('[SoundLoader] stored type:', normalizedBlob.type, 'for', fileInfo.path);
+
+                const putSuccess = await DB.putSound(fileInfo.path, normalizedBlob, fileInfo.size, fileInfo.hash);
                 if (putSuccess) {
                     completedFiles++;
                 } else {
