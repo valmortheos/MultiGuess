@@ -118,14 +118,15 @@ const DB = {
 
 let hapticEnabled = true;
 
-// Migration: Reset settings version to v2.0.4 to ensure haptic & sound are default ON
+// Migration: Reset settings version to v2.2.2 to ensure haptic & sound are default ON
 (async function migrateSettings() {
     try {
         const ver = await DB.get('settings', 'settings_version');
-        if (ver !== '2.0.4') {
-            await DB.set('settings', 'haptic_enabled', 'true');
+        if (ver !== '2.2.2') {
             await DB.set('settings', 'sound_effects', 'true');
-            await DB.set('settings', 'settings_version', '2.0.4');
+            await DB.set('settings', 'haptic_enabled', 'true');
+            await DB.set('settings', 'settings_version', '2.2.2');
+            console.log('[migrate] sound_effects forced to true for v2.2.2');
         }
     } catch (e) {
         console.warn("Settings migration warning:", e);

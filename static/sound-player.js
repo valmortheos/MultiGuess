@@ -101,11 +101,13 @@ const SoundPlayer = (function() {
 
         unlockEvents.forEach(evt => document.addEventListener(evt, unlockHandler, { once: true, capture: true }));
 
-        // Load preference
+        // Load preference defensively (default ON, only string 'false' literal disables)
         DB.get('settings', 'sound_effects').then(val => {
-            if (val !== null) {
-                isSoundEnabled = (val === 'true');
-            }
+            isSoundEnabled = (val !== 'false');
+            console.log(`[SoundPlayer] sound_effects raw= ${JSON.stringify(val)} → isSoundEnabled= ${isSoundEnabled}`);
+        }).catch(err => {
+            console.warn('[SoundPlayer] DB.get failed, defaulting to ON:', err);
+            isSoundEnabled = true;
         });
     }
 
