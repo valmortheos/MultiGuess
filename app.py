@@ -4,7 +4,7 @@ import threading
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
-from modules.config import APP_VERSION, DEV_MODE
+from modules.config import APP_VERSION, DEV_MODE, DISCONNECT_GRACE_SECONDS, MAX_PLAYERS
 from modules.network import find_free_port, get_lan_ip
 from modules.words import pick_three_words
 from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
@@ -177,34 +177,41 @@ def countdown_timer_task(room_code):
     emit_play_sound(room_code, {'type': 'YourTurn'}, target_sid=room['current_drawer'])
 
     room['timer_running'] = True
-    socketio.start_background_task(target=turn_timer_task, room_code=room_code)
+    if not room.get('timer_task_active', False):
+        room['timer_task_active'] = True
+        socketio.start_background_task(target=turn_timer_task, room_code=room_code)
 
 def turn_timer_task(room_code):
     room = room_mgr.get_room(room_code)
     if not room:
         return
 
-    while room and room.get('timer_running') and room['state'] == 'PLAYING':
-        # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
-        time.sleep(1)
-        room = room_mgr.get_room(room_code)
-        if not room or not room.get('timer_running') or room['state'] != 'PLAYING':
-            break
+    try:
+        while room and room.get('timer_running') and room['state'] == 'PLAYING':
+            # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
+            time.sleep(1)
+            room = room_mgr.get_room(room_code)
+            if not room or not room.get('timer_running') or room['state'] != 'PLAYING':
+                break
 
-        room['time_remaining'] -= 1
-        socketio.emit('timer_tick', {'time_remaining': room['time_remaining']}, to=room_code)
+            room['time_remaining'] -= 1
+            socketio.emit('timer_tick', {'time_remaining': room['time_remaining']}, to=room_code)
 
-        if room['time_remaining'] <= 20 and not room.get('has_played_time_remaining', False):
-            room['has_played_time_remaining'] = True
-            emit_play_sound(room_code, {'type': 'TimeRemaining'})
+            if room['time_remaining'] <= 20 and not room.get('has_played_time_remaining', False):
+                room['has_played_time_remaining'] = True
+                emit_play_sound(room_code, {'type': 'TimeRemaining'})
 
-        non_drawers = [sid for sid in room['players'] if sid != room['current_drawer']]
-        all_guessed = len(non_drawers) > 0 and all(room['players'][sid]['has_guessed'] for sid in non_drawers)
+            active_non_drawers = [sid for sid, p in room['players'].items() if sid != room['current_drawer'] and not p.get('disconnected')]
+            all_guessed = len(active_non_drawers) > 0 and all(room['players'][sid]['has_guessed'] for sid in active_non_drawers)
 
-        if room['time_remaining'] <= 0 or all_guessed:
-            room['timer_running'] = False
-            end_turn(room_code)
-            break
+            if room['time_remaining'] <= 0 or all_guessed:
+                room['timer_running'] = False
+                end_turn(room_code)
+                break
+    finally:
+        with room_state_lock:
+            if room:
+                room['timer_task_active'] = False
 
 def end_turn(room_code):
     room = room_mgr.get_room(room_code)
@@ -256,6 +263,65 @@ def delay_next_turn_task(room_code):
     if room and room['state'] == 'ROUND_ENDED':
         room['drawer_index'] += 1
         start_next_turn(room_code)
+
+# Background Cleanup Thread for Expired Disconnected Players
+def cleanup_expired_players_loop():
+    while True:
+        time.sleep(10)
+        now = time.time()
+        with room_state_lock:
+            for room_code, room in list(room_mgr.rooms.items()):
+                expired_sids = []
+                for sid, player in list(room['players'].items()):
+                    if player.get('disconnected'):
+                        disc_at = player.get('disconnected_at')
+                        if disc_at and (now - disc_at) >= DISCONNECT_GRACE_SECONDS:
+                            expired_sids.append(sid)
+
+                for exp_sid in expired_sids:
+                    player = room['players'].pop(exp_sid, None)
+                    if not player:
+                        continue
+                    player_name = player['name']
+
+                    room['drawer_order'] = [s for s in room['drawer_order'] if s != exp_sid]
+
+                    if 'voice_peers' in room and isinstance(room['voice_peers'], set):
+                        room['voice_peers'].discard(exp_sid)
+
+                    if 'reaction_assignments' in room and isinstance(room['reaction_assignments'], dict):
+                        room['reaction_assignments'].pop(exp_sid, None)
+
+                    if room.get('host_sid') == exp_sid:
+                        remaining_sids = list(room['players'].keys())
+                        if remaining_sids:
+                            room['host_sid'] = remaining_sids[0]
+                            new_host_name = room['players'][room['host_sid']]['name']
+                            socketio.emit('system_message', {
+                                'text': f"{new_host_name} sekarang adalah host room."
+                            }, to=room_code)
+
+                    is_expired_drawer = (exp_sid == room.get('current_drawer')) and (exp_sid == room.get('waiting_for_drawer'))
+                    if is_expired_drawer:
+                        room['waiting_for_drawer'] = None
+                        socketio.emit('system_message', {
+                            'text': f"{player_name} (drawer) keluar. Ronde dilewati."
+                        }, to=room_code)
+                        end_turn(room_code)
+                    else:
+                        socketio.emit('system_message', {
+                            'text': f"{player_name} telah dihapus dari room."
+                        }, to=room_code)
+
+                    if len(room['players']) == 0:
+                        del room_mgr.rooms[room_code]
+                    else:
+                        broadcast_room_update(room_code)
+
+                    room_mgr.save_cache()
+
+# Start background daemon cleanup worker thread
+threading.Thread(target=cleanup_expired_players_loop, daemon=True).start()
 
 @app.route('/')
 def index():
@@ -398,10 +464,119 @@ def handle_connect():
     print(f'[connect] sid={request.sid}')
     return True
 
+@socketio.on('restore_session')
+def handle_restore_session(data):
+    client_token = data.get('client_token')
+    req_code = normalize_room_code(data.get('room_code', ''))
+    sid = request.sid
+
+    if not client_token:
+        return
+
+    matched_room = None
+    matched_old_sid = None
+
+    with room_state_lock:
+        if req_code and req_code in room_mgr.rooms:
+            room = room_mgr.rooms[req_code]
+            for old_sid, p in room['players'].items():
+                if p.get('client_token') == client_token:
+                    matched_room = room
+                    matched_old_sid = old_sid
+                    break
+
+        if not matched_room:
+            for code, room in room_mgr.rooms.items():
+                for old_sid, p in room['players'].items():
+                    if p.get('client_token') == client_token:
+                        matched_room = room
+                        matched_old_sid = old_sid
+                        break
+                if matched_room:
+                    break
+
+        if not matched_room or not matched_old_sid:
+            emit('session_restore_failed', {'reason': 'not_found'})
+            return
+
+        room = matched_room
+        room_code = room['code']
+        player = room['players'].pop(matched_old_sid)
+
+        player['sid'] = sid
+        player['disconnected'] = False
+        player['disconnected_at'] = None
+        room['players'][sid] = player
+
+        if room['host_sid'] == matched_old_sid:
+            room['host_sid'] = sid
+
+        if room['current_drawer'] == matched_old_sid:
+            room['current_drawer'] = sid
+
+        room['drawer_order'] = [sid if d_sid == matched_old_sid else d_sid for d_sid in room['drawer_order']]
+
+        if matched_old_sid in room.get('turn_scores', {}):
+            val = room['turn_scores'].pop(matched_old_sid)
+            room['turn_scores'][sid] = val
+
+        if 'voice_peers' in room and isinstance(room['voice_peers'], set):
+            if matched_old_sid in room['voice_peers']:
+                room['voice_peers'].remove(matched_old_sid)
+                room['voice_peers'].add(sid)
+
+        if 'reaction_assignments' in room and isinstance(room['reaction_assignments'], dict):
+            if matched_old_sid in room['reaction_assignments']:
+                val = room['reaction_assignments'].pop(matched_old_sid)
+                room['reaction_assignments'][sid] = val
+
+        join_room(room_code)
+
+        is_drawer_rejoin = (matched_old_sid == room.get('waiting_for_drawer'))
+        if is_drawer_rejoin:
+            if room.get('paused_time_remaining') is not None:
+                room['time_remaining'] = room['paused_time_remaining']
+                room['paused_time_remaining'] = None
+            room['waiting_for_drawer'] = None
+            room['timer_running'] = True
+            if not room.get('timer_task_active', False):
+                room['timer_task_active'] = True
+                socketio.start_background_task(target=turn_timer_task, room_code=room_code)
+            socketio.emit('system_message', {
+                'text': f"{player['name']} (drawer) telah terhubung kembali. Permainan dilanjutkan!"
+            }, to=room_code)
+        else:
+            socketio.emit('system_message', {'text': f"{player['name']} kembali terhubung."}, to=room_code)
+
+        room_mgr.save_cache()
+
+        emit('session_restored', {
+            'room_code': room_code,
+            'is_host': (sid == room['host_sid']),
+            'state': room['state']
+        })
+
+        broadcast_room_update(room_code)
+
+        if room['strokes']:
+            emit('strokes_rebuild', room['strokes'], to=sid)
+
+        if room['state'] == 'PLAYING':
+            emit('round_started', {
+                'drawer_sid': room['current_drawer'],
+                'word_length': len(room['current_word']),
+                'round': room['current_round'],
+                'time_left': room['time_remaining']
+            }, to=sid)
+            emit('timer_tick', {'time_remaining': room['time_remaining']}, to=sid)
+            if sid == room['current_drawer'] and room['current_word']:
+                emit('your_word', {'word': room['current_word']}, to=sid)
+
 @socketio.on('create_room')
 def handle_create_room(data):
     player_name = data.get('player_name', '').strip() or data.get('name', '').strip()
-    print(f'[create_room] sid={request.sid} name={player_name!r}')
+    client_token = data.get('client_token')
+    print(f'[create_room] sid={request.sid} name={player_name!r} token={client_token}')
     if not player_name:
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
         return
@@ -413,7 +588,7 @@ def handle_create_room(data):
         return
 
     sid = request.sid
-    room_code = room_mgr.create_room(sid, player_name)
+    room_code = room_mgr.create_room(sid, player_name, client_token=client_token)
 
     join_room(room_code)
     emit('room_joined', {'room_code': room_code, 'is_host': True})
@@ -423,9 +598,10 @@ def handle_create_room(data):
 def handle_join_room(data):
     player_name = data.get('player_name', '').strip()
     raw_code = data.get('room_code', '')
+    client_token = data.get('client_token')
     room_code = normalize_room_code(raw_code)
     sid = request.sid
-    print(f'[join_room] sid={sid} name={player_name} code={room_code}')
+    print(f'[join_room] sid={sid} name={player_name} code={room_code} token={client_token}')
 
     if not player_name:
         emit('error_message', {'message': 'Nama pemain tidak boleh kosong.'})
@@ -446,23 +622,113 @@ def handle_join_room(data):
         emit('join_error', {'reason': 'not_found', 'code': room_code})
         return
 
-    if room['state'] != 'LOBBY':
-        emit('join_error', {'reason': 'in_progress', 'code': room_code})
+    # Prioritize client_token match for rejoin
+    matched_old_sid = None
+    if client_token:
+        with room_state_lock:
+            for p_sid, p in room['players'].items():
+                if p.get('client_token') == client_token:
+                    matched_old_sid = p_sid
+                    break
+
+    if matched_old_sid:
+        with room_state_lock:
+            player = room['players'].pop(matched_old_sid)
+            player['sid'] = sid
+            player['name'] = player_name
+            player['disconnected'] = False
+            player['disconnected_at'] = None
+            room['players'][sid] = player
+
+            if room['host_sid'] == matched_old_sid:
+                room['host_sid'] = sid
+            if room['current_drawer'] == matched_old_sid:
+                room['current_drawer'] = sid
+
+            room['drawer_order'] = [sid if d_sid == matched_old_sid else d_sid for d_sid in room['drawer_order']]
+
+            if matched_old_sid in room.get('turn_scores', {}):
+                val = room['turn_scores'].pop(matched_old_sid)
+                room['turn_scores'][sid] = val
+
+            if 'voice_peers' in room and isinstance(room['voice_peers'], set):
+                if matched_old_sid in room['voice_peers']:
+                    room['voice_peers'].remove(matched_old_sid)
+                    room['voice_peers'].add(sid)
+
+            if 'reaction_assignments' in room and isinstance(room['reaction_assignments'], dict):
+                if matched_old_sid in room['reaction_assignments']:
+                    val = room['reaction_assignments'].pop(matched_old_sid)
+                    room['reaction_assignments'][sid] = val
+
+            join_room(room_code)
+
+            is_drawer_rejoin = (matched_old_sid == room.get('waiting_for_drawer'))
+            if is_drawer_rejoin:
+                if room.get('paused_time_remaining') is not None:
+                    room['time_remaining'] = room['paused_time_remaining']
+                    room['paused_time_remaining'] = None
+                room['waiting_for_drawer'] = None
+                room['timer_running'] = True
+                if not room.get('timer_task_active', False):
+                    room['timer_task_active'] = True
+                    socketio.start_background_task(target=turn_timer_task, room_code=room_code)
+                socketio.emit('system_message', {
+                    'text': f"{player['name']} (drawer) telah terhubung kembali. Permainan dilanjutkan!"
+                }, to=room_code)
+            else:
+                socketio.emit('system_message', {'text': f"{player['name']} kembali bergabung."}, to=room_code)
+
+            room_mgr.save_cache()
+
+            emit('room_joined', {'room_code': room_code, 'is_host': (sid == room['host_sid'])})
+            broadcast_room_update(room_code)
+
+            if room['strokes']:
+                emit('strokes_rebuild', room['strokes'], to=sid)
+
+            if room['state'] == 'PLAYING':
+                emit('round_started', {
+                    'drawer_sid': room['current_drawer'],
+                    'word_length': len(room['current_word']),
+                    'round': room['current_round'],
+                    'time_left': room['time_remaining']
+                }, to=sid)
+                emit('timer_tick', {'time_remaining': room['time_remaining']}, to=sid)
+                if sid == room['current_drawer'] and room['current_word']:
+                    emit('your_word', {'word': room['current_word']}, to=sid)
         return
 
-    join_room(room_code)
-    room['players'][sid] = {
-        'sid': sid,
-        'name': player_name,
-        'score': 0,
-        'has_guessed': False
-    }
+    # New Player Joining
+    if len(room['players']) >= MAX_PLAYERS:
+        emit('join_error', {'reason': 'room_full', 'code': room_code, 'message': 'Room sudah penuh (maksimal 8 pemain).'})
+        return
 
-    room_mgr.save_cache()
+    with room_state_lock:
+        join_room(room_code)
+        room['players'][sid] = {
+            'sid': sid,
+            'name': player_name,
+            'score': 0,
+            'has_guessed': False,
+            'client_token': client_token,
+            'disconnected': False,
+            'disconnected_at': None
+        }
 
-    emit('room_joined', {'room_code': room_code, 'is_host': False})
-    socketio.emit('system_message', {'text': f"{player_name} bergabung ke room."}, to=room_code)
-    broadcast_room_update(room_code)
+        room_mgr.save_cache()
+
+        emit('room_joined', {'room_code': room_code, 'is_host': False})
+
+        if room['state'] != 'LOBBY':
+            socketio.emit('system_message', {'text': f"{player_name} bergabung di tengah permainan."}, to=room_code)
+        else:
+            socketio.emit('system_message', {'text': f"{player_name} bergabung ke room."}, to=room_code)
+
+        broadcast_room_update(room_code)
+
+        if room['state'] in ['PLAYING', 'SELECTING_WORD', 'COUNTDOWN'] and room['strokes']:
+            emit('strokes_rebuild', room['strokes'], to=sid)
 
 @socketio.on('canvas_ready')
 def handle_canvas_ready(data):
@@ -748,23 +1014,40 @@ def handle_play_again(data):
     if not room or room['host_sid'] != sid:
         return
 
-    room['state'] = 'LOBBY'
-    room['current_round'] = 1
-    room['drawer_index'] = 0
-    room['current_drawer'] = None
-    room['current_word'] = ''
-    room['strokes'] = []
-    room['timer_running'] = False
-    room['has_played_time_remaining'] = False
+    with room_state_lock:
+        room['state'] = 'LOBBY'
+        room['current_round'] = 1
+        room['drawer_index'] = 0
+        room['current_drawer'] = None
+        room['current_word'] = ''
+        room['strokes'] = []
+        room['timer_running'] = False
+        room['has_played_time_remaining'] = False
+        room['waiting_for_drawer'] = None
+        room['paused_time_remaining'] = None
 
-    for p_sid in room['players']:
-        room['players'][p_sid]['score'] = 0
-        room['players'][p_sid]['has_guessed'] = False
+        human_players = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
+        human_count = len(human_players)
+        total_rounds = room['settings']['total_rounds']
 
-    socketio.emit('clear_canvas', to=room_code)
-    socketio.emit('system_message', {'text': 'Host telah mereset permainan ke lobby.'}, to=room_code)
-    broadcast_room_update(room_code)
-    room_mgr.save_cache()
+        import random
+        drawer_order = []
+        for _ in range(total_rounds):
+            round_block = list(human_players)
+            random.shuffle(round_block)
+            drawer_order.extend(round_block)
+
+        room['drawer_order'] = drawer_order
+        room['human_player_count'] = human_count
+
+        for p_sid in room['players']:
+            room['players'][p_sid]['score'] = 0
+            room['players'][p_sid]['has_guessed'] = False
+
+        socketio.emit('clear_canvas', to=room_code)
+        socketio.emit('system_message', {'text': 'Host telah mereset permainan ke lobby.'}, to=room_code)
+        broadcast_room_update(room_code)
+        room_mgr.save_cache()
 
 @socketio.on('leave_room')
 def handle_leave_room(data):
@@ -803,27 +1086,26 @@ def handle_disconnect():
     if sid in chat_timestamps:
         del chat_timestamps[sid]
 
-    for room_code, room in list(room_mgr.rooms.items()):
-        if sid in room['players']:
-            player_name = room['players'][sid]['name']
-            del room['players'][sid]
+    with room_state_lock:
+        for room_code, room in list(room_mgr.rooms.items()):
+            if sid in room['players']:
+                player = room['players'][sid]
+                player['disconnected'] = True
+                player['disconnected_at'] = time.time()
+                player_name = player['name']
 
-            socketio.emit('system_message', {'text': f"{player_name} terputus."}, to=room_code)
-
-            if len(room['players']) == 0:
-                del room_mgr.rooms[room_code]
-            else:
-                if room['host_sid'] == sid:
-                    room['host_sid'] = list(room['players'].keys())[0]
-                    new_host_name = room['players'][room['host_sid']]['name']
-                    socketio.emit('system_message', {'text': f"{new_host_name} sekarang adalah host room."}, to=room_code)
+                socketio.emit('system_message', {'text': f"{player_name} terputus."}, to=room_code)
 
                 if room['current_drawer'] == sid and room['state'] in ['PLAYING', 'SELECTING_WORD']:
-                    end_turn(room_code)
-                else:
-                    broadcast_room_update(room_code)
+                    room['timer_running'] = False
+                    room['paused_time_remaining'] = room['time_remaining']
+                    room['waiting_for_drawer'] = sid
+                    socketio.emit('system_message', {
+                        'text': f"{player_name} (drawer) terputus, menunggu reconnect..."
+                    }, to=room_code)
 
-            room_mgr.save_cache()
+                broadcast_room_update(room_code)
+                room_mgr.save_cache()
 
 if __name__ == '__main__':
     init_cache()

@@ -149,16 +149,6 @@ function vibrate(pattern) {
     }
 }
 
-/* [v2.0.2-OLD]
-function getOrCreateUserId() {
-    let userId = localStorage.getItem('mg_user_id');
-    if (!userId) {
-        userId = 'user_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
-        localStorage.setItem('mg_user_id', userId);
-    }
-    return userId;
-}
-*/
 function getOrCreateUserId() {
     let userId = localStorage.getItem('mg_user_id');
     if (!userId) {
@@ -174,4 +164,17 @@ function getOrCreateUserId() {
         localStorage.setItem('mg_user_id', userId);
     }
     return userId;
+}
+
+function getOrCreateClientToken() {
+    let token = localStorage.getItem('mg_client_token');
+    if (!token) {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            token = 'token_' + crypto.randomUUID();
+        } else {
+            token = 'token_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+        }
+        localStorage.setItem('mg_client_token', token);
+    }
+    return token;
 }

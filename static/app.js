@@ -6,12 +6,14 @@
 // [v2.0.5-OLD] const APP_VERSION = "2.0.5";
 // [v2.2.0-OLD] const APP_VERSION = "2.2.0";
 // [v2.2.1-OLD] const APP_VERSION = "2.2.1";
-const APP_VERSION = "2.2.2";
+// [v2.2.2-OLD] const APP_VERSION = "2.2.2";
+const APP_VERSION = "2.2.3";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
 window.currentSid = null;
 window.roomPlayerCount = 0;
+window.clientToken = getOrCreateClientToken();
 
 // Global Error Handlers (v2.0.5)
 window.addEventListener('error', e => console.error('[global-error]', e.message, e.filename, e.lineno, e.error));
@@ -271,7 +273,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 return;
             }
             console.log('[btn] socket.connected =', window.AppSocket?.connected);
-            safeEmit('create_room', { player_name: name, name: name });
+            safeEmit('create_room', { player_name: name, name: name, client_token: window.clientToken });
             console.log('[emit] create_room sent OK');
         } catch (err) {
             console.error('[btn] error:', err);
@@ -295,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 return;
             }
             console.log('[btn] socket.connected =', window.AppSocket?.connected);
-            safeEmit('join_room', { player_name: name, name: name, room_code: rawCode });
+            safeEmit('join_room', { player_name: name, name: name, room_code: rawCode, client_token: window.clientToken });
             console.log('[emit] join_room sent OK');
         } catch (err) {
             console.error('[btn] error:', err);
@@ -366,6 +368,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         window.currentRoomCode = null;
         window.isHost = false;
         window.roomPlayerCount = 0;
+        localStorage.removeItem('mg_current_room');
         screenGame.classList.add('hidden');
         modalLobby.classList.add('hidden');
         modalWordSelect.classList.add('hidden');
@@ -469,6 +472,25 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Socket.IO Incoming Event Receivers
     window.AppSocket.on('connect', function() {
         window.currentSid = window.AppSocket.id;
+        const roomCode = window.currentRoomCode || localStorage.getItem('mg_current_room');
+        if (window.clientToken) {
+            safeEmit('restore_session', {
+                client_token: window.clientToken,
+                room_code: roomCode
+            });
+        }
+    });
+
+    window.AppSocket.on('session_restored', function(data) {
+        window.currentRoomCode = data.room_code;
+        window.isHost = data.is_host;
+        localStorage.setItem('mg_current_room', data.room_code);
+
+        displayRoomCode.textContent = window.currentRoomCode;
+        if (lobbyRoomCode) lobbyRoomCode.textContent = window.currentRoomCode;
+
+        screenHome.classList.add('hidden');
+        screenGame.classList.remove('hidden');
     });
 
     window.AppSocket.on('error_message', function(data) {
@@ -482,6 +504,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             showToast(`Room '${data.code}' sedang dalam permainan.`);
         } else if (data.reason === 'invalid_code') {
             showToast('Kode room tidak valid.');
+        } else if (data.reason === 'room_full') {
+            showToast(data.message || 'Room sudah penuh (maksimal 8 pemain).');
         } else {
             showToast('Gagal bergabung ke room.');
         }
@@ -499,6 +523,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     window.AppSocket.on('room_joined', function(data) {
         window.currentRoomCode = data.room_code;
         window.isHost = data.is_host;
+        localStorage.setItem('mg_current_room', data.room_code);
 
         displayRoomCode.textContent = window.currentRoomCode;
         lobbyRoomCode.textContent = window.currentRoomCode;
@@ -556,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         lobbyPlayerList.innerHTML = '';
         data.players.forEach(p => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>${p.name} ${p.is_host ? '👑 (Host)' : ''}</span> <span>${p.score} pts</span>`;
+            li.innerHTML = `<span>${p.name} ${p.is_host ? '👑 (Host)' : ''} ${p.disconnected ? '⚡ (Terputus)' : ''}</span> <span>${p.score} pts</span>`;
             lobbyPlayerList.appendChild(li);
         });
 
@@ -566,11 +591,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             let classes = 'leaderboard-item';
             if (p.sid === data.current_drawer) classes += ' drawer';
             if (p.has_guessed) classes += ' guessed';
+            if (p.disconnected) classes += ' disconnected';
             div.className = classes;
 
             let icon = '';
             if (p.sid === data.current_drawer) icon = '✏️ ';
             if (p.has_guessed) icon = '✅ ';
+            if (p.disconnected) icon += '⚡ ';
 
             div.innerHTML = `<span class="lb-name">${icon}${p.name}</span><span class="lb-score">${p.score}</span>`;
             leaderboardList.appendChild(div);

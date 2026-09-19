@@ -30,7 +30,7 @@ class RoomManager:
             if code not in self.rooms:
                 return code
 
-    def create_room(self, host_sid, player_name):
+    def create_room(self, host_sid, player_name, client_token=None):
         room_code = self.generate_room_code()
         self.rooms[room_code] = {
             'code': room_code,
@@ -41,7 +41,10 @@ class RoomManager:
                     'sid': host_sid,
                     'name': player_name,
                     'score': 0,
-                    'has_guessed': False
+                    'has_guessed': False,
+                    'client_token': client_token,
+                    'disconnected': False,
+                    'disconnected_at': None
                 }
             },
             'settings': {
@@ -58,6 +61,9 @@ class RoomManager:
             'strokes': [],
             'time_remaining': 0,
             'timer_running': False,
+            'waiting_for_drawer': None,
+            'paused_time_remaining': None,
+            'timer_task_active': False,
             'correct_guessers_count': 0,
             'turn_scores': {}
         }
@@ -94,7 +100,8 @@ class RoomManager:
                 'name': p['name'],
                 'score': p['score'],
                 'is_host': (sid == room['host_sid']),
-                'has_guessed': p['has_guessed']
+                'has_guessed': p['has_guessed'],
+                'disconnected': p.get('disconnected', False)
             })
         players_data.sort(key=lambda x: x['score'], reverse=True)
 
