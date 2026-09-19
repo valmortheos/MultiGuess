@@ -1,9 +1,10 @@
 import os
 import hashlib
 import json
+from pathlib import Path
 from modules.cache import persistent_save, persistent_load
 
-SOUND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Sound')
+SOUND_DIR = Path(__file__).resolve().parent.parent / "Sound"
 
 def calculate_file_hash(filepath):
     hasher = hashlib.sha256()
@@ -13,7 +14,7 @@ def calculate_file_hash(filepath):
     return hasher.hexdigest()
 
 def generate_sound_manifest():
-    if not os.path.exists(SOUND_DIR):
+    if not SOUND_DIR.exists():
         return {
             "version": "empty",
             "files": [],
@@ -25,12 +26,12 @@ def generate_sound_manifest():
     total_size = 0
     version_hasher = hashlib.sha256()
 
-    for root, _, files in os.walk(SOUND_DIR):
+    for root, _, files in os.walk(str(SOUND_DIR)):
         for file in sorted(files):
             if file.startswith('.'):
                 continue
             full_path = os.path.join(root, file)
-            rel_path = os.path.relpath(full_path, SOUND_DIR).replace('\\', '/')
+            rel_path = os.path.relpath(full_path, str(SOUND_DIR)).replace('\\', '/')
             size = os.path.getsize(full_path)
             mtime = os.path.getmtime(full_path)
             file_hash = calculate_file_hash(full_path)

@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": 1789664740.6446834,
+    "event_type": "censored_chat",
+    "username": "Alice",
+    "text": "babi",
+    "matched_word": "babi",
+    "room_code": "KDHV"
+  },
+  {
+    "timestamp": 1789664823.3517597,
+    "event_type": "censored_chat",
+    "username": "Bob",
+    "text": "babi",
+    "matched_word": "babi",
+    "room_code": "SBZA"
+  }
+]
