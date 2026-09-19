@@ -1,1 +1,10 @@
-{}
+{
+  "FLQR": {
+    "created_at": 1789834763,
+    "host": "Alice",
+    "player_count": 3,
+    "status": "lobby",
+    "round": 1,
+    "current_word": ""
+  }
+}
