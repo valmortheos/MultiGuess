@@ -16,8 +16,9 @@
     <!-- [v2.2.1-OLD] <title>MultiGuess v2.2.1 - Game Draw & Guess</title> -->
     <!-- [v2.2.2-OLD] <title>MultiGuess v2.2.2 - Game Draw & Guess</title> -->
     <!-- [v2.2.3-OLD] <title>MultiGuess v2.2.3 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.3.0 - Game Draw & Guess</title>
-    <link rel="stylesheet" href="/static/style.css?v=230">
+    <!-- [v2.3.0-OLD] <title>MultiGuess v2.3.0 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.4.0 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css?v=240">
     <!-- Socket.IO Local Library -->
     <script src="/static/socket.io.min.js"></script>
 </head>
@@ -160,12 +161,14 @@
                         <input type="color" id="color-picker" class="color-picker-input" value="#111827" title="Pilih Warna Bebas" aria-label="Warna Custom">
                     </div>
                     <div class="tool-controls">
-                        <select id="brush-size" class="select-tool" aria-label="Ukuran Kuas">
-                            <option value="3">Halus</option>
-                            <option value="6" selected>Sedang</option>
-                            <option value="12">Tebal</option>
-                            <option value="24">Sangat Tebal</option>
-                        </select>
+                        <div class="brush-size-container">
+                            <button id="btn-brush-size" type="button" class="btn-tool" title="Ukuran Kuas">✏️ <span id="brush-size-val">6</span></button>
+                            <div id="brush-slider-panel" class="brush-slider-panel hidden">
+                                <span class="slider-label">30</span>
+                                <input type="range" id="brush-size-slider" min="1" max="30" value="6" orient="vertical">
+                                <span class="slider-label">1</span>
+                            </div>
+                        </div>
                         <button id="btn-fill" type="button" class="btn-tool" title="Isi Warna Area">🪣 Fill</button>
                         <button id="btn-sticker-toggle" type="button" class="btn-tool" title="Sticker Panel">🎨</button>
                         <button id="btn-eraser" type="button" class="btn-tool">Hapus</button>
@@ -292,7 +295,10 @@
             <!-- [v2.2.1-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.1</div> -->
             <!-- [v2.2.2-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.2</div> -->
             <!-- [v2.2.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.3</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div>
+            <!-- [v2.3.0-OLD] <div class="footer-version">MultiGuess v2.3.0</div> -->
+            <div class="footer-version">MultiGuess v2.4.0</div>
+            <!-- [v2.3.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.4.0</div>
         </div>
     </div>
 
@@ -415,10 +421,10 @@
         </div>
     </div>
 
-    <script src="/static/storage.js?v=230"></script>
-    <script src="/static/sound-loader.js?v=230"></script>
-    <script src="/static/sound-player.js?v=230"></script>
-    <script src="/static/canvas.js?v=230"></script>
-    <script src="/static/app.js?v=230"></script>
+    <script src="/static/storage.js?v=240"></script>
+    <script src="/static/sound-loader.js?v=240"></script>
+    <script src="/static/sound-player.js?v=240"></script>
+    <script src="/static/canvas.js?v=240"></script>
+    <script src="/static/app.js?v=240"></script>
 </body>
 </html>

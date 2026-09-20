@@ -3,14 +3,7 @@ import time
 import random
 from modules.config import DEV_MODE
 
-RANDOM_SOUND_FILES = [
-    'Random/rd_ack.mp3',
-    'Random/rd_ahh.mp3',
-    'Random/rd_laugh.mp3',
-    'Random/rd_meow.mp3',
-    'Random/rd_metalclang.mp3',
-    'Random/rd_taco.mp3'
-]
+from modules.sound_manifest import load_sound_config
 
 class DevBot:
     def __init__(self, socketio, room_code, bot_name="Bot-Dev"):
@@ -20,12 +13,16 @@ class DevBot:
         self.mg_user_id = str(uuid.uuid4())
         self.sid = f"BOT-{self.mg_user_id[:8]}"
 
-        # Select 3 random sounds using Fisher-Yates
-        all_sounds = list(RANDOM_SOUND_FILES)
-        for i in range(len(all_sounds) - 1, 0, -1):
-            j = random.randint(0, i)
-            all_sounds[i], all_sounds[j] = all_sounds[j], all_sounds[i]
-        self.random_sounds = all_sounds[:3]
+        cfg = load_sound_config()
+        random_pool = list(cfg.get('categories', {}).get('Random', []))
+        if random_pool:
+            all_sounds = list(random_pool)
+            for i in range(len(all_sounds) - 1, 0, -1):
+                j = random.randint(0, i)
+                all_sounds[i], all_sounds[j] = all_sounds[j], all_sounds[i]
+            self.random_sounds = all_sounds[:3]
+        else:
+            self.random_sounds = []
 
     def log(self, level, message):
         ts = int(time.time() * 1000)
