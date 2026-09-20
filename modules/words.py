@@ -1,4 +1,5 @@
 import random
+import statistics
 import os
 import json
 
@@ -43,7 +44,7 @@ WORD_BANK = load_words()
 def get_pool_size():
     return len(load_words())
 
-def pick_three_words(exclude=None):
+def pick_three_words(exclude=None, stats=None):
     current_words = load_words()
     if exclude is None:
         exclude = set()
@@ -53,9 +54,32 @@ def pick_three_words(exclude=None):
     available = [w for w in current_words if w not in exclude]
 
     if len(available) < 3:
-        # Reset exclude as pool is depleted
         if isinstance(exclude, set):
             exclude.clear()
         available = list(current_words)
 
-    return random.sample(available, 3)
+    words_used = stats.get('words_used', {}) if stats else {}
+    words_picked_total = stats.get('words_picked_total', 0) if stats else 0
+
+    if not stats or words_picked_total < 5 or not words_used:
+        return random.sample(available, 3)
+
+    used_counts = [words_used.get(w, 0) for w in available]
+    med = statistics.median(used_counts) if used_counts else 0
+
+    weights = [max(1, med - words_used.get(w, 0) + 1) for w in available]
+
+    chosen = []
+    pool_words = list(available)
+    pool_weights = list(weights)
+
+    for _ in range(3):
+        if not pool_words:
+            break
+        selected = random.choices(pool_words, weights=pool_weights, k=1)[0]
+        chosen.append(selected)
+        idx = pool_words.index(selected)
+        pool_words.pop(idx)
+        pool_weights.pop(idx)
+
+    return chosen

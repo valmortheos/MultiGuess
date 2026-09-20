@@ -11,10 +11,14 @@ const CanvasManager = (function() {
     let currentColor = '#111827';
     let currentLineWidth = 6;
     let isEraser = false;
+    let isFillMode = false;
+    let stickerMode = false;
     let strokes = [];
     let isDrawerMode = false;
     let isCanvasReady = false;
     let currentPointerId = null;
+
+    const imageCache = {};
 
     function init(canvasId) {
         console.log('[CanvasManager] Initializing canvas:', canvasId);
@@ -98,6 +102,7 @@ const CanvasManager = (function() {
         console.log('[CanvasManager] Setting color:', color);
         currentColor = color;
         isEraser = false;
+        isFillMode = false;
     }
 
     function setLineWidth(width) {
@@ -108,6 +113,28 @@ const CanvasManager = (function() {
     function setEraser(enabled) {
         console.log('[CanvasManager] Setting eraser:', enabled);
         isEraser = enabled;
+        if (enabled) {
+            isFillMode = false;
+            stickerMode = false;
+        }
+    }
+
+    function setFillMode(enabled) {
+        console.log('[CanvasManager] Setting fill mode:', enabled);
+        isFillMode = enabled;
+        if (enabled) {
+            isEraser = false;
+            stickerMode = false;
+        }
+    }
+
+    function setStickerMode(enabled) {
+        console.log('[CanvasManager] Setting sticker mode:', enabled);
+        stickerMode = enabled;
+        if (enabled) {
+            isFillMode = false;
+            isEraser = false;
+        }
     }
 
     function getCanvasCoords(e) {
@@ -122,18 +149,151 @@ const CanvasManager = (function() {
         const finalX = Math.max(0, Math.min(1, x));
         const finalY = Math.max(0, Math.min(1, y));
 
-        console.log('[coords]', { rect, x: finalX, y: finalY, clientX, clientY });
-
         return {
             x: finalX,
             y: finalY
         };
     }
 
+    function hexToRgba(hex) {
+        let c = hex.replace('#', '');
+        if (c.length === 3) c = c.split('').map(x => x + x).join('');
+        const num = parseInt(c, 16);
+        return [ (num >> 16) & 255, (num >> 8) & 255, num & 255, 255 ];
+    }
+
+    function performFill(normX, normY, fillColorHex, tolerance = 30) {
+        if (!canvas || !ctx) return;
+        const W = canvas.width;
+        const H = canvas.height;
+        if (W === 0 || H === 0) return;
+
+        const startX = Math.floor(normX * W);
+        const startY = Math.floor(normY * H);
+        if (startX < 0 || startX >= W || startY < 0 || startY >= H) return;
+
+        const imgData = ctx.getImageData(0, 0, W, H);
+        const data = imgData.data;
+
+        const targetIdx = (startY * W + startX) * 4;
+        const tR = data[targetIdx];
+        const tG = data[targetIdx + 1];
+        const tB = data[targetIdx + 2];
+        const tA = data[targetIdx + 3];
+
+        const [fR, fG, fB, fA] = hexToRgba(fillColorHex);
+
+        function match(idx) {
+            return (
+                Math.abs(data[idx] - tR) <= tolerance &&
+                Math.abs(data[idx + 1] - tG) <= tolerance &&
+                Math.abs(data[idx + 2] - tB) <= tolerance &&
+                Math.abs(data[idx + 3] - tA) <= tolerance
+            );
+        }
+
+        if (Math.abs(tR - fR) <= tolerance && Math.abs(tG - fG) <= tolerance &&
+            Math.abs(tB - fB) <= tolerance && Math.abs(tA - fA) <= tolerance) {
+            return;
+        }
+
+        let minX = W, minY = H, maxX = 0, maxY = 0;
+        const stack = [[startX, startY]];
+        const visited = new Uint8Array(W * H);
+
+        while (stack.length > 0) {
+            const [cx, cy] = stack.pop();
+            let y = cy;
+
+            while (y >= 0 && match((y * W + cx) * 4) && !visited[y * W + cx]) {
+                y--;
+            }
+            y++;
+
+            let spanLeft = false;
+            let spanRight = false;
+
+            while (y < H && match((y * W + cx) * 4) && !visited[y * W + cx]) {
+                const pIdx = (y * W + cx) * 4;
+                visited[y * W + cx] = 1;
+
+                data[pIdx] = fR;
+                data[pIdx + 1] = fG;
+                data[pIdx + 2] = fB;
+                data[pIdx + 3] = fA;
+
+                if (cx < minX) minX = cx;
+                if (cx > maxX) maxX = cx;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+
+                if (cx > 0) {
+                    if (match((y * W + (cx - 1)) * 4) && !visited[y * W + (cx - 1)]) {
+                        if (!spanLeft) {
+                            stack.push([cx - 1, y]);
+                            spanLeft = true;
+                        }
+                    } else {
+                        spanLeft = false;
+                    }
+                }
+
+                if (cx < W - 1) {
+                    if (match((y * W + (cx + 1)) * 4) && !visited[y * W + (cx + 1)]) {
+                        if (!spanRight) {
+                            stack.push([cx + 1, y]);
+                            spanRight = true;
+                        }
+                    } else {
+                        spanRight = false;
+                    }
+                }
+
+                y++;
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        if (minX <= maxX && minY <= maxY) {
+            const pW = maxX - minX + 1;
+            const pH = maxY - minY + 1;
+            const patchCanvas = document.createElement('canvas');
+            patchCanvas.width = pW;
+            patchCanvas.height = pH;
+            const patchCtx = patchCanvas.getContext('2d');
+            const patchData = ctx.getImageData(minX, minY, pW, pH);
+            patchCtx.putImageData(patchData, 0, 0);
+
+            const dataUrl = patchCanvas.toDataURL('image/png');
+            const stroke = {
+                type: 'bitmap',
+                x: minX / W,
+                y: minY / H,
+                w: pW / W,
+                h: pH / H,
+                data: dataUrl
+            };
+
+            strokes.push(stroke);
+            if (window.AppSocket) {
+                window.AppSocket.emit('draw_stroke', { stroke: stroke, room_code: window.currentRoomCode });
+            }
+        }
+    }
+
     function handlePointerDown(e) {
         if (!isDrawerMode || !isCanvasReady) return;
         if (e.pointerType === 'touch' && e.isPrimary === false) return;
+        if (stickerMode) return; // Ignore drawing when placing sticker
+
         e.preventDefault();
+
+        if (isFillMode) {
+            const coords = getCanvasCoords(e);
+            performFill(coords.x, coords.y, currentColor, 30);
+            return;
+        }
 
         currentPointerId = e.pointerId;
         try {
@@ -155,7 +315,6 @@ const CanvasManager = (function() {
             type: 'start'
         };
 
-        console.log('[CanvasManager] PointerDown stroke start at:', coords);
         strokes.push(strokePoint);
         drawPoint(strokePoint);
 
@@ -165,7 +324,7 @@ const CanvasManager = (function() {
     }
 
     function handlePointerMove(e) {
-        if (!isDrawerMode || !isDrawing || !isCanvasReady) return;
+        if (!isDrawerMode || !isDrawing || !isCanvasReady || stickerMode || isFillMode) return;
         if (currentPointerId !== null && e.pointerId !== currentPointerId) return;
         e.preventDefault();
 
@@ -187,7 +346,7 @@ const CanvasManager = (function() {
     }
 
     function handlePointerUp(e) {
-        if (!isDrawerMode || !isDrawing) return;
+        if (!isDrawerMode || !isDrawing || stickerMode || isFillMode) return;
         e.preventDefault();
 
         isDrawing = false;
@@ -211,7 +370,6 @@ const CanvasManager = (function() {
             type: 'end'
         };
 
-        console.log('[CanvasManager] PointerUp stroke end at:', coords);
         strokes.push(strokePoint);
 
         if (window.AppSocket) {
@@ -221,7 +379,7 @@ const CanvasManager = (function() {
 
     // Touch Event Fallback Handlers
     function handleTouchStart(e) {
-        if (!isDrawerMode || !isCanvasReady || window.PointerEvent) return; // Skip if PointerEvents supported
+        if (!isDrawerMode || !isCanvasReady || window.PointerEvent || stickerMode) return;
         if (e.touches.length === 1) {
             const touch = e.touches[0];
             handlePointerDown({
@@ -234,7 +392,7 @@ const CanvasManager = (function() {
     }
 
     function handleTouchMove(e) {
-        if (!isDrawerMode || !isCanvasReady || window.PointerEvent) return;
+        if (!isDrawerMode || !isCanvasReady || window.PointerEvent || stickerMode) return;
         if (e.touches.length === 1) {
             const touch = e.touches[0];
             handlePointerMove({
@@ -247,7 +405,7 @@ const CanvasManager = (function() {
     }
 
     function handleTouchEnd(e) {
-        if (!isDrawerMode || !isCanvasReady || window.PointerEvent) return;
+        if (!isDrawerMode || !isCanvasReady || window.PointerEvent || stickerMode) return;
         const touch = e.changedTouches[0] || e.touches[0];
         if (touch) {
             handlePointerUp({
@@ -262,8 +420,34 @@ const CanvasManager = (function() {
     function drawPoint(stroke) {
         if (!canvas || !ctx) return;
         const rect = canvas.getBoundingClientRect();
-        const absX = stroke.x * rect.width;
-        const absY = stroke.y * rect.height;
+        const width = rect.width;
+        const height = rect.height;
+
+        if (stroke.type === 'bitmap' || stroke.type === 'sticker') {
+            const src = stroke.data || stroke.path;
+            if (!src) return;
+
+            const absX = stroke.x * width;
+            const absY = stroke.y * height;
+            const absW = stroke.w * width;
+            const absH = stroke.h * height;
+
+            if (imageCache[src] && imageCache[src].loaded) {
+                ctx.drawImage(imageCache[src].img, absX, absY, absW, absH);
+            } else if (!imageCache[src]) {
+                const img = new Image();
+                imageCache[src] = { img: img, loaded: false };
+                img.onload = () => {
+                    imageCache[src].loaded = true;
+                    requestAnimationFrame(() => redrawAll());
+                };
+                img.src = src;
+            }
+            return;
+        }
+
+        const absX = stroke.x * width;
+        const absY = stroke.y * height;
 
         ctx.strokeStyle = stroke.color;
         ctx.fillStyle = stroke.color;
@@ -321,10 +505,13 @@ const CanvasManager = (function() {
         setColor: setColor,
         setLineWidth: setLineWidth,
         setEraser: setEraser,
+        setFillMode: setFillMode,
+        setStickerMode: setStickerMode,
         addRemoteStroke: addRemoteStroke,
         rebuildStrokes: rebuildStrokes,
         clear: clear,
         resizeCanvas: resizeCanvas,
-        getCanvasCoords: getCanvasCoords
+        getCanvasCoords: getCanvasCoords,
+        getStrokes: () => strokes
     };
 })();

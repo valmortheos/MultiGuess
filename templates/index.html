@@ -15,8 +15,9 @@
     <!-- [v2.2.0-OLD] <title>MultiGuess v2.2.0 - Game Draw & Guess</title> -->
     <!-- [v2.2.1-OLD] <title>MultiGuess v2.2.1 - Game Draw & Guess</title> -->
     <!-- [v2.2.2-OLD] <title>MultiGuess v2.2.2 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.2.3 - Game Draw & Guess</title>
-    <link rel="stylesheet" href="/static/style.css?v=223">
+    <!-- [v2.2.3-OLD] <title>MultiGuess v2.2.3 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.3.0 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css?v=230">
     <!-- Socket.IO Local Library -->
     <script src="/static/socket.io.min.js"></script>
 </head>
@@ -45,6 +46,13 @@
         <div class="countdown-content">
             <span id="countdown-number">3</span>
             <p id="countdown-text">Bersiap-siap!</p>
+        </div>
+    </div>
+
+    <!-- Round Announce Overlay (v2.3.0) -->
+    <div id="round-announce-overlay" class="overlay hidden" style="pointer-events: none;">
+        <div class="round-announce-content">
+            <h1 id="round-announce-text">Ronde 1 dari 3</h1>
         </div>
     </div>
 
@@ -98,7 +106,8 @@
             <!-- [v2.2.0-OLD] <div class="footer-version">MultiGuess v2.2.0</div> -->
             <!-- [v2.2.1-OLD] <div class="footer-version">MultiGuess v2.2.1</div> -->
             <!-- [v2.2.2-OLD] <div class="footer-version">MultiGuess v2.2.2</div> -->
-            <div class="footer-version">MultiGuess v2.2.3</div>
+            <!-- [v2.2.3-OLD] <div class="footer-version">MultiGuess v2.2.3</div> -->
+            <div class="footer-version">MultiGuess v2.3.0</div>
         </div>
     </div>
 
@@ -111,6 +120,7 @@
                 <button id="btn-back-lobby" class="btn btn-icon-secondary" title="Kembali">← Kembali</button>
                 <span class="room-badge">Room: <strong id="display-room-code">----</strong></span>
                 <span id="round-badge" class="round-badge">Ronde 1/3</span>
+                <span id="next-drawer-badge" class="next-drawer-badge">Next: -</span>
             </div>
             <div class="header-center">
                 <div id="timer-display" class="timer-box">75s</div>
@@ -147,6 +157,7 @@
                         <button class="color-btn" data-color="#22c55e" style="background-color: #22c55e;" aria-label="Hijau"></button>
                         <button class="color-btn" data-color="#eab308" style="background-color: #eab308;" aria-label="Kuning"></button>
                         <button class="color-btn" data-color="#a855f7" style="background-color: #a855f7;" aria-label="Ungu"></button>
+                        <input type="color" id="color-picker" class="color-picker-input" value="#111827" title="Pilih Warna Bebas" aria-label="Warna Custom">
                     </div>
                     <div class="tool-controls">
                         <select id="brush-size" class="select-tool" aria-label="Ukuran Kuas">
@@ -155,10 +166,21 @@
                             <option value="12">Tebal</option>
                             <option value="24">Sangat Tebal</option>
                         </select>
+                        <button id="btn-fill" type="button" class="btn-tool" title="Isi Warna Area">🪣 Fill</button>
+                        <button id="btn-sticker-toggle" type="button" class="btn-tool" title="Sticker Panel">🎨</button>
                         <button id="btn-eraser" type="button" class="btn-tool">Hapus</button>
                         <button id="btn-undo" type="button" class="btn-tool">Undo</button>
                         <button id="btn-clear" type="button" class="btn-tool btn-tool-danger">Hapus Semua</button>
                     </div>
+                </div>
+
+                <!-- Sticker Slide Panel (v2.3.0) -->
+                <div id="sticker-panel" class="sticker-panel hidden">
+                    <div class="sticker-panel-header">
+                        <h3>Pilih Sticker</h3>
+                        <button id="btn-close-stickers" class="btn-icon-danger">✕</button>
+                    </div>
+                    <div id="sticker-grid" class="sticker-grid"></div>
                 </div>
 
                 <!-- Action Bar / Reaction Buttons Bar (v2.0.3 Repositioned to Toolbar/Action Bar) -->
@@ -269,7 +291,8 @@
             <!-- [v2.2.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.0</div> -->
             <!-- [v2.2.1-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.1</div> -->
             <!-- [v2.2.2-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.2</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.3</div>
+            <!-- [v2.2.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.3</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div>
         </div>
     </div>
 
@@ -359,6 +382,10 @@
             <div id="word-cards-container" class="word-cards-container">
                 <!-- 3 Word Cards -->
             </div>
+            <div class="word-reroll-container">
+                <button id="btn-reroll-words" class="btn btn-secondary btn-sm">🔄 Acak Ulang</button>
+                <span id="reroll-count-text" class="reroll-count-text">Reroll: 0/2</span>
+            </div>
         </div>
     </div>
 
@@ -388,10 +415,10 @@
         </div>
     </div>
 
-    <script src="/static/storage.js?v=223"></script>
-    <script src="/static/sound-loader.js?v=223"></script>
-    <script src="/static/sound-player.js?v=223"></script>
-    <script src="/static/canvas.js?v=223"></script>
-    <script src="/static/app.js?v=223"></script>
+    <script src="/static/storage.js?v=230"></script>
+    <script src="/static/sound-loader.js?v=230"></script>
+    <script src="/static/sound-player.js?v=230"></script>
+    <script src="/static/canvas.js?v=230"></script>
+    <script src="/static/app.js?v=230"></script>
 </body>
 </html>

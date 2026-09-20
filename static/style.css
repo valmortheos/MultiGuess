@@ -1186,3 +1186,161 @@ input[type="text"]:focus {
     margin-bottom: 2px;
     word-break: break-all;
 }
+
+/* v2.3.0 Features Styling */
+.color-picker-input {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+    background: transparent;
+    vertical-align: middle;
+}
+
+.color-picker-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker-input::-webkit-color-swatch {
+    border: 2px solid #d1d5db;
+    border-radius: 50%;
+}
+
+.btn-tool.active {
+    background-color: #3b82f6 !important;
+    color: #ffffff !important;
+    border-color: #2563eb !important;
+}
+
+.next-drawer-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1e40af;
+    background: #dbeafe;
+    padding: 2px 6px;
+    border-radius: 12px;
+    border: 1px solid #bfdbfe;
+    white-space: nowrap;
+}
+
+.round-announce-content {
+    background: rgba(17, 24, 39, 0.9);
+    color: #ffffff;
+    padding: 20px 32px;
+    border-radius: 16px;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    animation: fadeInOut 2s ease-in-out forwards;
+}
+
+.round-announce-content h1 {
+    font-size: 24px;
+    margin: 0;
+}
+
+.word-reroll-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.reroll-count-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.sticker-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 220px;
+    background: #ffffff;
+    border-left: 1px solid #e5e7eb;
+    box-shadow: -4px 0 12px rgba(0,0,0,0.1);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.sticker-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.sticker-panel-header h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.sticker-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 4px;
+    transition: transform 0.1s;
+}
+
+.sticker-thumb:active {
+    transform: scale(0.95);
+}
+
+.no-stickers-msg {
+    grid-column: span 2;
+    text-align: center;
+    font-size: 12px;
+    color: #6b7280;
+    padding: 20px 0;
+}
+
+.sticker-overlay {
+    position: absolute;
+    border: 2px dashed #3b82f6;
+    box-sizing: border-box;
+    cursor: move;
+    z-index: 40;
+    touch-action: none;
+}
+
+.sticker-overlay img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.sticker-overlay-btn {
+    position: absolute;
+    bottom: -30px;
+    right: 0;
+    background: #22c55e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
