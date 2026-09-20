@@ -7,10 +7,16 @@
     "Random": [
       "Random/rd_ack.mp3",
       "Random/rd_ahh.mp3",
+      "Random/rd_antek.mp3",
+      "Random/rd_capek.mp3",
+      "Random/rd_chicken.mp3",
+      "Random/rd_dana.mp3",
+      "Random/rd_jokowi.mp3",
       "Random/rd_laugh.mp3",
       "Random/rd_meow.mp3",
       "Random/rd_metalclang.mp3",
-      "Random/rd_taco.mp3"
+      "Random/rd_taco.mp3",
+      "Random/rd_wiwok.mp3"
     ],
     "TimeRemaining": ["TimeRemaining/tm_sponge.mp3"],
     "WinnerScore": ["WinnerScore/ws_dubistgut.mp3"],

@@ -14,5 +14,309 @@
     "text": "babi",
     "matched_word": "babi",
     "room_code": "SBZA"
+  },
+  {
+    "timestamp": 1789832347.4160714,
+    "event_type": "censored_chat",
+    "username": "MOMOK",
+    "text": "Susu",
+    "matched_word": "susu",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832351.685728,
+    "event_type": "censored_chat",
+    "username": "Adibas",
+    "text": "Susu",
+    "matched_word": "susu",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832359.0334828,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Susu",
+    "matched_word": "susu",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832374.0021589,
+    "event_type": "censored_chat",
+    "username": "Dipz",
+    "text": "Susu",
+    "matched_word": "susu",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832406.772606,
+    "event_type": "censored_chat",
+    "username": "MOMOK",
+    "text": "Susu",
+    "matched_word": "susu",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832473.0593326,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Anjir",
+    "matched_word": "anjir",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832478.8404958,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Babi Hutan",
+    "matched_word": "babi",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832483.8335145,
+    "event_type": "censored_chat",
+    "username": "Adibas",
+    "text": "Apa ya cok",
+    "matched_word": "cok",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832532.4410942,
+    "event_type": "censored_chat",
+    "username": "ah",
+    "text": "kontol",
+    "matched_word": "kontol",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832563.2010233,
+    "event_type": "censored_chat",
+    "username": "ah",
+    "text": "lampu kontol",
+    "matched_word": "kontol",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832635.1424718,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Kontol Mania",
+    "matched_word": "kontol",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832643.8333063,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Memek Caca",
+    "matched_word": "memek",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832735.7555559,
+    "event_type": "censored_chat",
+    "username": "monyal",
+    "text": "memek",
+    "matched_word": "memek",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832745.160861,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Cok",
+    "matched_word": "cok",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832756.9932678,
+    "event_type": "censored_chat",
+    "username": "FazaHahay",
+    "text": "Kaca Puki",
+    "matched_word": "puki",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789832968.9376316,
+    "event_type": "censored_chat",
+    "username": "MOMOK",
+    "text": "Kont0l",
+    "matched_word": "kontol",
+    "room_code": "YLAB"
+  },
+  {
+    "timestamp": 1789841576.9216409,
+    "event_type": "reject_player_name",
+    "username": "PUTING SUSU",
+    "text": "PUTING SUSU",
+    "matched_word": "susu",
+    "room_code": null
+  },
+  {
+    "timestamp": 1789841591.323701,
+    "event_type": "reject_player_name",
+    "username": "PUTlNG SUSU",
+    "text": "PUTlNG SUSU",
+    "matched_word": "susu",
+    "room_code": null
+  },
+  {
+    "timestamp": 1789842390.597279,
+    "event_type": "censored_chat",
+    "username": "Sesuai Konteks",
+    "text": "Setan",
+    "matched_word": "setan",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789842392.493057,
+    "event_type": "censored_chat",
+    "username": "Purbaya Sadewa",
+    "text": "Goblon",
+    "matched_word": "goblo",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789842729.413974,
+    "event_type": "censored_chat",
+    "username": "Kenapa",
+    "text": "Anjing",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789843055.7670205,
+    "event_type": "censored_chat",
+    "username": "Kenapa",
+    "text": "Babi",
+    "matched_word": "babi",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789843064.5534992,
+    "event_type": "censored_chat",
+    "username": "PUTlNG",
+    "text": "Tai sapi",
+    "matched_word": "tai",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789843069.9542475,
+    "event_type": "censored_chat",
+    "username": "PUTlNG",
+    "text": "Susu",
+    "matched_word": "susu",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789843376.8825345,
+    "event_type": "censored_chat",
+    "username": "Uhuy",
+    "text": "Bulu babi",
+    "matched_word": "babi",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844241.889171,
+    "event_type": "censored_chat",
+    "username": "JOKOWI",
+    "text": "Anjing",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844242.667338,
+    "event_type": "censored_chat",
+    "username": "Fahmi",
+    "text": "anjing",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844243.620022,
+    "event_type": "censored_chat",
+    "username": "Sesuai Konteks",
+    "text": "ANJING",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844245.9428287,
+    "event_type": "censored_chat",
+    "username": "Teh Iin",
+    "text": "Anjing",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844246.020287,
+    "event_type": "censored_chat",
+    "username": "Enak ah",
+    "text": "Anjing",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844258.3268318,
+    "event_type": "censored_chat",
+    "username": "Enak ah",
+    "text": "ANJING",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844261.990444,
+    "event_type": "censored_chat",
+    "username": "Sesuai Konteks",
+    "text": "Jokowi anjing",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844264.2111104,
+    "event_type": "censored_chat",
+    "username": "Enak ah",
+    "text": "AnjIng",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844270.853624,
+    "event_type": "censored_chat",
+    "username": "Enak ah",
+    "text": "Anjeng",
+    "matched_word": "anjeng",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844279.830288,
+    "event_type": "censored_chat",
+    "username": "JOKOWI",
+    "text": "Anjing'",
+    "matched_word": "anjing",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844515.3927069,
+    "event_type": "censored_chat",
+    "username": "Pijat Plus Plus",
+    "text": "Jembut Dinosaurus",
+    "matched_word": "jembut",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844682.341444,
+    "event_type": "censored_chat",
+    "username": "Pijat Plus Plus",
+    "text": "Jembut Alaska",
+    "matched_word": "jembut",
+    "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1789844705.3124979,
+    "event_type": "censored_chat",
+    "username": "Sesuai Konteks",
+    "text": "Mati",
+    "matched_word": "mati",
+    "room_code": "DAXC"
   }
 ]
