@@ -7,7 +7,8 @@
 // [v2.2.0-OLD] const APP_VERSION = "2.2.0";
 // [v2.2.1-OLD] const APP_VERSION = "2.2.1";
 // [v2.2.2-OLD] const APP_VERSION = "2.2.2";
-const APP_VERSION = "2.2.3";
+// [v2.2.3-OLD] const APP_VERSION = "2.2.3";
+const APP_VERSION = "2.3.0";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -219,14 +220,47 @@ document.addEventListener('DOMContentLoaded', async function() {
         return name;
     }
 
+    function formatSoundName(soundPath) {
+        if (!soundPath) return null;
+        let name = soundPath.split('/').pop() || soundPath;
+        if (name.startsWith('rd_')) {
+            name = name.substring(3);
+        }
+        if (name.endsWith('.mp3')) {
+            name = name.substring(0, name.length - 4);
+        }
+        const fullName = name;
+        const shortName = name.length > 8 ? name.substring(0, 8) + '…' : name;
+        return { fullName, shortName };
+    }
+
+    function updateReactionButtons(slots) {
+        reactionBtns.forEach((btn, idx) => {
+            const slotNum = idx + 1;
+            const soundPath = slots && slots[idx] ? slots[idx] : null;
+            if (soundPath) {
+                btn.dataset.soundPath = soundPath;
+                const formatted = formatSoundName(soundPath);
+                btn.textContent = `${slotNum} ${formatted.shortName}`;
+                btn.title = formatted.fullName;
+            } else {
+                btn.textContent = `${slotNum}`;
+                btn.title = "Loading...";
+            }
+        });
+    }
+
     // Reaction Buttons Event Binding
     reactionBtns.forEach(btn => {
         btn.addEventListener('click', async function() {
             vibrate(10);
             const slot = parseInt(this.dataset.slot) || 1;
             const userId = getOrCreateUserId();
-            const userSounds = await SoundPlayer.getUserRandomSounds(userId);
-            const soundPath = userSounds[slot - 1];
+            let soundPath = this.dataset.soundPath;
+            if (!soundPath) {
+                const userSounds = await SoundPlayer.getUserRandomSounds(userId);
+                soundPath = userSounds[slot - 1];
+            }
 
             if (window.currentRoomCode && soundPath) {
                 window.AppSocket.emit('trigger_reaction', {
@@ -403,14 +437,197 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     // Toolbar Event Listeners
+    const colorPicker = document.getElementById('color-picker');
+    if (colorPicker) {
+        colorPicker.addEventListener('input', function() {
+            colorBtns.forEach(b => b.classList.remove('active'));
+            CanvasManager.setColor(this.value);
+        });
+    }
+
     colorBtns.forEach(btn => {
         btn.addEventListener('click', function() {
             vibrate(10);
             colorBtns.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
+            if (colorPicker) colorPicker.value = this.dataset.color;
             CanvasManager.setColor(this.dataset.color);
         });
     });
+
+    const btnFill = document.getElementById('btn-fill');
+    if (btnFill) {
+        btnFill.addEventListener('click', function() {
+            vibrate(10);
+            const isFillActive = this.classList.contains('active');
+            btnFill.classList.toggle('active', !isFillActive);
+            btnEraser.classList.remove('active');
+            CanvasManager.setFillMode(!isFillActive);
+        });
+    }
+
+    // Sticker Panel & Drag/Drop Placement Handler (v2.3.0)
+    const btnStickerToggle = document.getElementById('btn-sticker-toggle');
+    const stickerPanel = document.getElementById('sticker-panel');
+    const btnCloseStickers = document.getElementById('btn-close-stickers');
+    const stickerGrid = document.getElementById('sticker-grid');
+    const canvasContainer = document.getElementById('canvas-container');
+
+    if (btnStickerToggle) {
+        btnStickerToggle.addEventListener('click', async function() {
+            vibrate(10);
+            if (!stickerPanel) return;
+            const isHidden = stickerPanel.classList.contains('hidden');
+            if (isHidden) {
+                stickerPanel.classList.remove('hidden');
+                loadStickerGrid();
+            } else {
+                stickerPanel.classList.add('hidden');
+            }
+        });
+    }
+
+    if (btnCloseStickers) {
+        btnCloseStickers.addEventListener('click', function() {
+            vibrate(10);
+            if (stickerPanel) stickerPanel.classList.add('hidden');
+        });
+    }
+
+    async function loadStickerGrid() {
+        if (!stickerGrid) return;
+        try {
+            const res = await fetch('/api/stickers');
+            const stickers = await res.json();
+            stickerGrid.innerHTML = '';
+
+            if (!stickers || stickers.length === 0) {
+                stickerGrid.innerHTML = '<div class="no-stickers-msg">Belum ada sticker</div>';
+                return;
+            }
+
+            stickers.forEach(s => {
+                const img = document.createElement('img');
+                img.className = 'sticker-thumb';
+                img.src = s.path;
+                img.alt = s.name;
+                img.addEventListener('click', function() {
+                    vibrate(10);
+                    if (stickerPanel) stickerPanel.classList.add('hidden');
+                    startStickerPlacement(s.path);
+                });
+                stickerGrid.appendChild(img);
+            });
+        } catch (err) {
+            console.error('[Stickers] Error loading stickers:', err);
+            if (stickerGrid) stickerGrid.innerHTML = '<div class="no-stickers-msg">Gagal memuat sticker</div>';
+        }
+    }
+
+    function startStickerPlacement(stickerPath) {
+        if (!canvasContainer) return;
+        CanvasManager.setStickerMode(true);
+
+        const existing = document.getElementById('sticker-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'sticker-overlay';
+        overlay.className = 'sticker-overlay';
+        overlay.style.left = '42.5%';
+        overlay.style.top = '42.5%';
+        overlay.style.width = '15%';
+        overlay.style.aspectRatio = '1';
+
+        const img = document.createElement('img');
+        img.src = stickerPath;
+
+        const btnOk = document.createElement('button');
+        btnOk.className = 'sticker-overlay-btn';
+        btnOk.textContent = 'OK';
+
+        overlay.appendChild(img);
+        overlay.appendChild(btnOk);
+        canvasContainer.appendChild(overlay);
+
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        overlay.addEventListener('pointerdown', function(e) {
+            if (e.target === btnOk) return;
+            e.preventDefault();
+            isDragging = true;
+            overlay.setPointerCapture(e.pointerId);
+            startX = e.clientX;
+            startY = e.clientY;
+
+            const rect = overlay.getBoundingClientRect();
+            const parentRect = canvasContainer.getBoundingClientRect();
+            initialLeft = rect.left - parentRect.left;
+            initialTop = rect.top - parentRect.top;
+        });
+
+        overlay.addEventListener('pointermove', function(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            const parentRect = canvasContainer.getBoundingClientRect();
+            let newLeft = initialLeft + dx;
+            let newTop = initialTop + dy;
+
+            newLeft = Math.max(0, Math.min(parentRect.width - overlay.offsetWidth, newLeft));
+            newTop = Math.max(0, Math.min(parentRect.height - overlay.offsetHeight, newTop));
+
+            overlay.style.left = `${(newLeft / parentRect.width) * 100}%`;
+            overlay.style.top = `${(newTop / parentRect.height) * 100}%`;
+        });
+
+        function lockSticker() {
+            const parentRect = canvasContainer.getBoundingClientRect();
+            const overlayRect = overlay.getBoundingClientRect();
+
+            const normX = (overlayRect.left - parentRect.left) / parentRect.width;
+            const normY = (overlayRect.top - parentRect.top) / parentRect.height;
+            const normW = overlayRect.width / parentRect.width;
+            const normH = overlayRect.height / parentRect.height;
+
+            const stroke = {
+                type: 'sticker',
+                x: Math.max(0, normX),
+                y: Math.max(0, normY),
+                w: normW,
+                h: normH,
+                path: stickerPath,
+                rotation: 0
+            };
+
+            CanvasManager.addRemoteStroke(stroke);
+            if (window.AppSocket) {
+                window.AppSocket.emit('draw_stroke', { stroke: stroke, room_code: window.currentRoomCode });
+            }
+
+            overlay.remove();
+            CanvasManager.setStickerMode(false);
+        }
+
+        const handlePointerUp = function(e) {
+            if (isDragging) {
+                isDragging = false;
+                try { overlay.releasePointerCapture(e.pointerId); } catch (err) {}
+            }
+        };
+
+        overlay.addEventListener('pointerup', handlePointerUp);
+        overlay.addEventListener('pointercancel', handlePointerUp);
+
+        btnOk.addEventListener('click', function(e) {
+            e.stopPropagation();
+            vibrate(10);
+            lockSticker();
+        });
+    }
 
     selectBrushSize.addEventListener('change', function() {
         CanvasManager.setLineWidth(parseInt(this.value));
@@ -418,6 +635,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     btnEraser.addEventListener('click', function() {
         vibrate(10);
+        if (btnFill) btnFill.classList.remove('active');
         CanvasManager.setEraser(true);
     });
 
@@ -686,6 +904,48 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
+    window.AppSocket.on('reaction_assignments', function(data) {
+        if (data && data.slots) {
+            updateReactionButtons(data.slots);
+        }
+    });
+
+    window.AppSocket.on('round_announce', function(data) {
+        const roundAnnounceOverlay = document.getElementById('round-announce-overlay');
+        const roundAnnounceText = document.getElementById('round-announce-text');
+        if (roundAnnounceOverlay && roundAnnounceText) {
+            roundAnnounceText.textContent = `Ronde ${data.round} dari ${data.total_rounds}`;
+            roundAnnounceOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                roundAnnounceOverlay.classList.add('hidden');
+            }, 2000);
+        }
+    });
+
+    window.AppSocket.on('next_drawer', function(data) {
+        const nextDrawerBadge = document.getElementById('next-drawer-badge');
+        if (nextDrawerBadge) {
+            if (data.is_last) {
+                nextDrawerBadge.textContent = 'Last round';
+            } else if (data.name) {
+                nextDrawerBadge.textContent = `Next: ${data.name}`;
+            }
+            nextDrawerBadge.classList.remove('hidden');
+        }
+    });
+
+    const btnRerollWords = document.getElementById('btn-reroll-words');
+    const rerollCountText = document.getElementById('reroll-count-text');
+
+    if (btnRerollWords) {
+        btnRerollWords.addEventListener('click', function() {
+            vibrate(10);
+            if (window.currentRoomCode) {
+                window.AppSocket.emit('reroll_words', { room_code: window.currentRoomCode });
+            }
+        });
+    }
+
     window.AppSocket.on('choose_word_prompt', function(data) {
         wordCardsContainer.innerHTML = '';
         data.words.forEach(word => {
@@ -702,6 +962,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             });
             wordCardsContainer.appendChild(btn);
         });
+
+        const rerollCount = data.reroll_count || 0;
+        if (rerollCountText) {
+            rerollCountText.textContent = `Reroll: ${rerollCount}/2`;
+        }
+        if (btnRerollWords) {
+            btnRerollWords.disabled = (rerollCount >= 2);
+        }
+
         modalWordSelect.classList.remove('hidden');
     });
 

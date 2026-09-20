@@ -11,7 +11,9 @@ from modules.scoring import is_similar_guess, calculate_guesser_points, calculat
 from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
 from modules.game_state import RoomManager, normalize_room_code
 from modules.sound_manifest import get_sound_manifest, load_sound_config, SOUND_DIR
+from modules.stickers import STICKER_DIR, list_stickers
 from modules.profanity import contains_profanity, is_profane, log_moderation
+from modules.stats import load_stats, record_word_used, record_word_censored
 from modules.dev_bot import (
     active_dev_bots, get_active_bot, spawn_bot, remove_bot, trigger_bot_reaction
 )
@@ -35,6 +37,27 @@ def broadcast_room_update(room_code):
     data = room_mgr.get_room_data(room_code)
     if data:
         socketio.emit('room_updated', data, to=room_code)
+
+def assign_reactions(room_code):
+    room = room_mgr.get_room(room_code)
+    if not room or not room.get('players'):
+        return
+
+    cfg = load_sound_config()
+    pool = list(cfg.get('categories', {}).get('Random', []))
+    if not pool:
+        return
+
+    import random
+    if 'reaction_assignments' not in room or not isinstance(room['reaction_assignments'], dict):
+        room['reaction_assignments'] = {}
+
+    for sid in list(room['players'].keys()):
+        shuffled = list(pool)
+        random.shuffle(shuffled)
+        slots = shuffled[:3]
+        room['reaction_assignments'][sid] = slots
+        socketio.emit('reaction_assignments', {'slots': slots}, to=sid)
 
 def emit_play_sound(room_code, payload, target_sid=None, target_sids=None):
     if not room_code or not payload or not isinstance(payload, dict):
@@ -106,16 +129,44 @@ def start_next_turn(room_code):
     room['current_word'] = ''
     room['correct_guessers_count'] = 0
     room['turn_scores'] = {}
+    room['reroll_count'] = 0
 
     for sid in room['players']:
         room['players'][sid]['has_guessed'] = False
 
     # [v2.2.0-NEW] Track and exclude used words across turns
     used_words = room.get('used_words', set())
-    room['word_options'] = pick_three_words(exclude=used_words)
+    from modules.stats import load_stats
+    stats = load_stats()
+    room['word_options'] = pick_three_words(exclude=used_words, stats=stats)
     for word in room['word_options']:
         used_words.add(word)
     room['used_words'] = used_words
+
+    # [v2.3.0] Rotate reaction sound assignments per round/turn
+    assign_reactions(room_code)
+
+    # [v2.3.0] Round announcement event
+    socketio.emit('round_announce', {
+        'round': room['current_round'],
+        'total_rounds': room['settings']['total_rounds']
+    }, to=room_code)
+
+    # [v2.3.0] Next drawer preview
+    next_idx = room['drawer_index'] + 1
+    if next_idx < len(room['drawer_order']):
+        next_sid = room['drawer_order'][next_idx]
+        next_name = room['players'].get(next_sid, {}).get('name', 'Pemain') if next_sid in room['players'] else 'Pemain'
+        socketio.emit('next_drawer', {
+            'sid': next_sid,
+            'name': next_name,
+            'round': room['current_round']
+        }, to=room_code)
+    else:
+        socketio.emit('next_drawer', {
+            'is_last': True,
+            'round': room['current_round']
+        }, to=room_code)
 
     broadcast_room_update(room_code)
     socketio.emit('clear_canvas', to=room_code)
@@ -123,7 +174,9 @@ def start_next_turn(room_code):
 
     socketio.emit('choose_word_prompt', {
         'words': room['word_options'],
-        'timeout': 15
+        'timeout': 15,
+        'reroll_count': 0,
+        'max_rerolls': 2
     }, to=drawer_sid)
 
     socketio.start_background_task(target=word_select_timer_task, room_code=room_code, drawer_sid=drawer_sid)
@@ -140,6 +193,8 @@ def on_word_chosen(room_code, drawer_sid, chosen_word):
     room = room_mgr.get_room(room_code)
     if not room or room['state'] != 'SELECTING_WORD' or room['current_drawer'] != drawer_sid:
         return
+
+    record_word_used(chosen_word)
 
     room['current_word'] = chosen_word
     room['state'] = 'COUNTDOWN'
@@ -331,6 +386,14 @@ def index():
 def serve_sound(filename):
     return send_from_directory(SOUND_DIR, filename)
 
+@app.route('/Stickers/<path:filename>')
+def serve_sticker(filename):
+    return send_from_directory(STICKER_DIR, filename)
+
+@app.route('/api/stickers')
+def api_stickers():
+    return jsonify(list_stickers())
+
 @app.route('/api/sound-manifest')
 def sound_manifest():
     manifest = get_sound_manifest()
@@ -348,6 +411,21 @@ def sound_config():
                 valid_random.append(path)
         cfg['categories']['Random'] = valid_random
     return jsonify(cfg)
+
+@app.route('/api/stats')
+def api_stats():
+    return jsonify(load_stats())
+
+@app.route('/stats')
+def stats_page():
+    st = load_stats()
+    words_used = st.get('words_used', {})
+    words_censored = st.get('words_censored', {})
+
+    top_used = sorted(words_used.items(), key=lambda x: x[1], reverse=True)[:20]
+    top_censored = sorted(words_censored.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    return render_template('stats.html', stats=st, top_used=top_used, top_censored=top_censored)
 
 @app.after_request
 def add_cache_control_headers(response):
@@ -560,6 +638,9 @@ def handle_restore_session(data):
 
         if room['strokes']:
             emit('strokes_rebuild', room['strokes'], to=sid)
+
+        if room.get('reaction_assignments') and sid in room['reaction_assignments']:
+            emit('reaction_assignments', {'slots': room['reaction_assignments'][sid]}, to=sid)
 
         if room['state'] == 'PLAYING':
             emit('round_started', {
@@ -806,6 +887,38 @@ def handle_start_game(data):
 
     start_next_turn(room_code)
 
+@socketio.on('reroll_words')
+def handle_reroll_words(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    room = room_mgr.get_room(room_code)
+
+    if not room or room['state'] != 'SELECTING_WORD' or room['current_drawer'] != sid:
+        return
+
+    reroll_count = room.get('reroll_count', 0)
+    if reroll_count >= 2:
+        emit('error_message', {'message': 'Maksimal 2 kali acak ulang per giliran.'})
+        return
+
+    room['reroll_count'] = reroll_count + 1
+
+    used_words = room.get('used_words', set())
+    from modules.stats import load_stats
+    stats = load_stats()
+    new_words = pick_three_words(exclude=used_words, stats=stats)
+    for w in new_words:
+        used_words.add(w)
+    room['used_words'] = used_words
+    room['word_options'] = new_words
+
+    socketio.emit('choose_word_prompt', {
+        'words': room['word_options'],
+        'timeout': 15,
+        'reroll_count': room['reroll_count'],
+        'max_rerolls': 2
+    }, to=sid)
+
 @socketio.on('select_word')
 def handle_select_word(data):
     sid = request.sid
@@ -826,6 +939,8 @@ def handle_draw_stroke(data):
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
         room['strokes'].append(stroke)
+        if len(room['strokes']) > 500:
+            room['strokes'] = room['strokes'][-500:]
         socketio.emit('draw_stroke', stroke, to=room_code, include_self=False)
 
 @socketio.on('clear_canvas')
@@ -879,6 +994,7 @@ def handle_send_message(data):
     # Profanity moderation check
     has_profanity, matched = contains_profanity(text)
     if has_profanity:
+        record_word_censored(matched)
         log_moderation('censored_chat', player['name'], text, matched, room_code)
         display_text = "[pesan disensor]"
         socketio.emit('chat_message', {
@@ -1025,6 +1141,7 @@ def handle_play_again(data):
         room['has_played_time_remaining'] = False
         room['waiting_for_drawer'] = None
         room['paused_time_remaining'] = None
+        room['reroll_count'] = 0
 
         human_players = [p_sid for p_sid, p in room['players'].items() if not p.get('is_bot')]
         human_count = len(human_players)
