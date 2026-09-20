@@ -46,7 +46,7 @@ def assign_reactions(room_code):
     cfg = load_sound_config()
     pool = list(cfg.get('categories', {}).get('Random', []))
     if not pool:
-        pool = ["Random/rd_metalclang.mp3", "Random/rd_ack.mp3", "Random/rd_boing.mp3"]
+        return
 
     import random
     if 'reaction_assignments' not in room or not isinstance(room['reaction_assignments'], dict):
