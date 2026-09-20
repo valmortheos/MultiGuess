@@ -102,6 +102,7 @@ def start_next_turn(room_code):
         return
 
     # [v2.2.0-NEW] Auto-Rolling Drawer round calculation
+    prev_round = room.get('current_round', 1)
     human_count = room.get('human_player_count', len(human_players))
     if human_count > 0:
         room['current_round'] = (room['drawer_index'] // human_count) + 1
@@ -146,11 +147,13 @@ def start_next_turn(room_code):
     # [v2.3.0] Rotate reaction sound assignments per round/turn
     assign_reactions(room_code)
 
-    # [v2.3.0] Round announcement event
-    socketio.emit('round_announce', {
-        'round': room['current_round'],
-        'total_rounds': room['settings']['total_rounds']
-    }, to=room_code)
+    # [v2.4.0] Round announcement event only on round increment
+    if room['current_round'] > prev_round:
+        socketio.emit('round_announce', {
+            'round': room['current_round'],
+            'total_rounds': room['settings']['total_rounds']
+        }, to=room_code)
+        emit_play_sound(room_code, {'type': 'RoundAnnounce'})
 
     # [v2.3.0] Next drawer preview
     next_idx = room['drawer_index'] + 1

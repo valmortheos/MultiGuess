@@ -10,8 +10,7 @@ const CanvasManager = (function() {
     let isDrawing = false;
     let currentColor = '#111827';
     let currentLineWidth = 6;
-    let isEraser = false;
-    let isFillMode = false;
+    let currentTool = 'brush'; // 'brush' | 'eraser' | 'fill'
     let stickerMode = false;
     let strokes = [];
     let isDrawerMode = false;
@@ -19,6 +18,51 @@ const CanvasManager = (function() {
     let currentPointerId = null;
 
     const imageCache = {};
+    const stickerCache = new Map();
+    const stickerQueue = [];
+    let isProcessingStickerQueue = false;
+
+    function registerStickerImage(path, img) {
+        stickerCache.set(path, img);
+        processStickerQueue();
+    }
+
+    function processStickerQueue() {
+        if (isProcessingStickerQueue) return;
+        isProcessingStickerQueue = true;
+
+        function step() {
+            if (stickerQueue.length === 0) {
+                isProcessingStickerQueue = false;
+                return;
+            }
+            const stroke = stickerQueue[0];
+            const src = stroke.data || stroke.path;
+            const cached = stickerCache.get(src);
+
+            if (cached && cached.complete) {
+                stickerQueue.shift();
+                redrawAll();
+                step();
+            } else if (!cached) {
+                const img = new Image();
+                img.onload = () => {
+                    stickerCache.set(src, img);
+                    stickerQueue.shift();
+                    redrawAll();
+                    step();
+                };
+                img.onerror = () => {
+                    console.warn('[CanvasManager] Failed to load queued sticker:', src);
+                    stickerQueue.shift();
+                    step();
+                };
+                img.src = src;
+            }
+        }
+
+        step();
+    }
 
     function init(canvasId) {
         console.log('[CanvasManager] Initializing canvas:', canvasId);
@@ -101,8 +145,7 @@ const CanvasManager = (function() {
     function setColor(color) {
         console.log('[CanvasManager] Setting color:', color);
         currentColor = color;
-        isEraser = false;
-        isFillMode = false;
+        currentTool = 'brush';
     }
 
     function setLineWidth(width) {
@@ -112,29 +155,27 @@ const CanvasManager = (function() {
 
     function setEraser(enabled) {
         console.log('[CanvasManager] Setting eraser:', enabled);
-        isEraser = enabled;
         if (enabled) {
-            isFillMode = false;
+            currentTool = 'eraser';
             stickerMode = false;
+        } else if (currentTool === 'eraser') {
+            currentTool = 'brush';
         }
     }
 
     function setFillMode(enabled) {
         console.log('[CanvasManager] Setting fill mode:', enabled);
-        isFillMode = enabled;
         if (enabled) {
-            isEraser = false;
+            currentTool = 'fill';
             stickerMode = false;
+        } else if (currentTool === 'fill') {
+            currentTool = 'brush';
         }
     }
 
     function setStickerMode(enabled) {
         console.log('[CanvasManager] Setting sticker mode:', enabled);
         stickerMode = enabled;
-        if (enabled) {
-            isFillMode = false;
-            isEraser = false;
-        }
     }
 
     function getCanvasCoords(e) {
@@ -289,7 +330,7 @@ const CanvasManager = (function() {
 
         e.preventDefault();
 
-        if (isFillMode) {
+        if (currentTool === 'fill') {
             const coords = getCanvasCoords(e);
             performFill(coords.x, coords.y, currentColor, 30);
             return;
@@ -310,7 +351,7 @@ const CanvasManager = (function() {
         const strokePoint = {
             x: coords.x,
             y: coords.y,
-            color: isEraser ? '#ffffff' : currentColor,
+            color: currentTool === 'eraser' ? '#ffffff' : currentColor,
             size: currentLineWidth,
             type: 'start'
         };
@@ -324,7 +365,7 @@ const CanvasManager = (function() {
     }
 
     function handlePointerMove(e) {
-        if (!isDrawerMode || !isDrawing || !isCanvasReady || stickerMode || isFillMode) return;
+        if (!isDrawerMode || !isDrawing || !isCanvasReady || stickerMode || currentTool === 'fill') return;
         if (currentPointerId !== null && e.pointerId !== currentPointerId) return;
         e.preventDefault();
 
@@ -332,7 +373,7 @@ const CanvasManager = (function() {
         const strokePoint = {
             x: coords.x,
             y: coords.y,
-            color: isEraser ? '#ffffff' : currentColor,
+            color: currentTool === 'eraser' ? '#ffffff' : currentColor,
             size: currentLineWidth,
             type: 'line'
         };
@@ -346,7 +387,7 @@ const CanvasManager = (function() {
     }
 
     function handlePointerUp(e) {
-        if (!isDrawerMode || !isDrawing || stickerMode || isFillMode) return;
+        if (!isDrawerMode || !isDrawing || stickerMode || currentTool === 'fill') return;
         e.preventDefault();
 
         isDrawing = false;
@@ -365,7 +406,7 @@ const CanvasManager = (function() {
         const strokePoint = {
             x: coords.x,
             y: coords.y,
-            color: isEraser ? '#ffffff' : currentColor,
+            color: currentTool === 'eraser' ? '#ffffff' : currentColor,
             size: currentLineWidth,
             type: 'end'
         };
@@ -432,16 +473,15 @@ const CanvasManager = (function() {
             const absW = stroke.w * width;
             const absH = stroke.h * height;
 
-            if (imageCache[src] && imageCache[src].loaded) {
-                ctx.drawImage(imageCache[src].img, absX, absY, absW, absH);
-            } else if (!imageCache[src]) {
-                const img = new Image();
-                imageCache[src] = { img: img, loaded: false };
-                img.onload = () => {
-                    imageCache[src].loaded = true;
-                    requestAnimationFrame(() => redrawAll());
-                };
-                img.src = src;
+            const cachedImg = stickerCache.get(src) || (imageCache[src] && imageCache[src].loaded ? imageCache[src].img : null);
+
+            if (cachedImg && cachedImg.complete) {
+                ctx.drawImage(cachedImg, absX, absY, absW, absH);
+            } else {
+                if (!stickerQueue.includes(stroke)) {
+                    stickerQueue.push(stroke);
+                }
+                processStickerQueue();
             }
             return;
         }
@@ -512,6 +552,9 @@ const CanvasManager = (function() {
         clear: clear,
         resizeCanvas: resizeCanvas,
         getCanvasCoords: getCanvasCoords,
-        getStrokes: () => strokes
+        getStrokes: () => strokes,
+        registerStickerImage: registerStickerImage,
+        getStickerCache: () => stickerCache,
+        getCurrentTool: () => currentTool
     };
 })();

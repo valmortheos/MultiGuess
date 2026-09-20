@@ -281,16 +281,17 @@ const SoundPlayer = (function() {
             if (userSounds && userSounds.length > 0) {
                 targetPath = userSounds[Math.floor(Math.random() * userSounds.length)];
             }
-        } else if (soundConfig.categories[category]) {
+        } else if (soundConfig.categories && soundConfig.categories[category]) {
             const options = soundConfig.categories[category];
-            if (options && options.length > 0) {
-                targetPath = options[Math.floor(Math.random() * options.length)];
+            if (!options || options.length === 0) {
+                console.warn(`[SoundPlayer] No sound options for category: ${category}`);
+                return;
             }
+            targetPath = options[Math.floor(Math.random() * options.length)];
         }
 
         if (!targetPath) {
-            console.warn('[SoundPlayer] No targetPath found for category:', category, 'playing fallback tone');
-            playFallbackTone(category);
+            console.warn(`[SoundPlayer] No targetPath found for category: ${category}`);
             return;
         }
 

@@ -8,7 +8,8 @@
 // [v2.2.1-OLD] const APP_VERSION = "2.2.1";
 // [v2.2.2-OLD] const APP_VERSION = "2.2.2";
 // [v2.2.3-OLD] const APP_VERSION = "2.2.3";
-const APP_VERSION = "2.3.0";
+// [v2.3.0-OLD] const APP_VERSION = "2.3.0";
+const APP_VERSION = "2.4.0";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -47,6 +48,35 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Canvas Init
     CanvasManager.init('game-canvas');
+
+    // Sticker Preloader
+    const stickerCache = CanvasManager.getStickerCache();
+    async function preloadStickers() {
+        try {
+            const res = await fetch('/api/stickers');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const stickers = await res.json();
+            if (Array.isArray(stickers)) {
+                stickers.forEach(s => {
+                    const fullPath = s.path.startsWith('/Stickers/') ? s.path : `/Stickers/${s.path}`;
+                    if (!stickerCache.has(fullPath)) {
+                        const img = new Image();
+                        img.onload = () => {
+                            CanvasManager.registerStickerImage(fullPath, img);
+                        };
+                        img.onerror = () => {
+                            console.warn('[Stickers] Preload failed for:', fullPath);
+                        };
+                        img.src = fullPath;
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn('[Stickers] Preload sticker fetch warning:', err);
+        }
+    }
+
+    preloadStickers();
 
     // UI Elements
     const screenHome = document.getElementById('screen-home');
@@ -223,8 +253,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     function formatSoundName(soundPath) {
         if (!soundPath) return null;
         let name = soundPath.split('/').pop() || soundPath;
-        if (name.startsWith('rd_')) {
-            name = name.substring(3);
+        const underscoreIdx = name.indexOf('_');
+        if (underscoreIdx !== -1 && underscoreIdx < 5) {
+            name = name.substring(underscoreIdx + 1);
         }
         if (name.endsWith('.mp3')) {
             name = name.substring(0, name.length - 4);
@@ -403,6 +434,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         window.isHost = false;
         window.roomPlayerCount = 0;
         localStorage.removeItem('mg_current_room');
+        document.body.classList.remove('is-drawer');
         screenGame.classList.add('hidden');
         modalLobby.classList.add('hidden');
         modalWordSelect.classList.add('hidden');
@@ -437,10 +469,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     // Toolbar Event Listeners
+    const btnFill = document.getElementById('btn-fill');
+
+    function setActiveTool(tool) {
+        if (tool === 'eraser') {
+            btnEraser.classList.add('active');
+            if (btnFill) btnFill.classList.remove('active');
+        } else if (tool === 'fill') {
+            if (btnFill) btnFill.classList.add('active');
+            btnEraser.classList.remove('active');
+        } else { // 'brush'
+            btnEraser.classList.remove('active');
+            if (btnFill) btnFill.classList.remove('active');
+        }
+    }
+
     const colorPicker = document.getElementById('color-picker');
     if (colorPicker) {
         colorPicker.addEventListener('input', function() {
             colorBtns.forEach(b => b.classList.remove('active'));
+            setActiveTool('brush');
             CanvasManager.setColor(this.value);
         });
     }
@@ -451,18 +499,22 @@ document.addEventListener('DOMContentLoaded', async function() {
             colorBtns.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             if (colorPicker) colorPicker.value = this.dataset.color;
+            setActiveTool('brush');
             CanvasManager.setColor(this.dataset.color);
         });
     });
 
-    const btnFill = document.getElementById('btn-fill');
     if (btnFill) {
         btnFill.addEventListener('click', function() {
             vibrate(10);
-            const isFillActive = this.classList.contains('active');
-            btnFill.classList.toggle('active', !isFillActive);
-            btnEraser.classList.remove('active');
-            CanvasManager.setFillMode(!isFillActive);
+            const isFillActive = (CanvasManager.getCurrentTool() === 'fill');
+            if (isFillActive) {
+                setActiveTool('brush');
+                CanvasManager.setFillMode(false);
+            } else {
+                setActiveTool('fill');
+                CanvasManager.setFillMode(true);
+            }
         });
     }
 
@@ -536,28 +588,45 @@ document.addEventListener('DOMContentLoaded', async function() {
         overlay.className = 'sticker-overlay';
         overlay.style.left = '42.5%';
         overlay.style.top = '42.5%';
-        overlay.style.width = '15%';
+        overlay.style.width = '20%';
         overlay.style.aspectRatio = '1';
 
         const img = document.createElement('img');
         img.src = stickerPath;
 
-        const btnOk = document.createElement('button');
-        btnOk.className = 'sticker-overlay-btn';
-        btnOk.textContent = 'OK';
+        const btnCancel = document.createElement('button');
+        btnCancel.className = 'sticker-overlay-btn sticker-btn-cancel';
+        btnCancel.textContent = '✕';
+        btnCancel.title = 'Batal';
 
-        overlay.appendChild(img);
+        const btnOk = document.createElement('button');
+        btnOk.className = 'sticker-overlay-btn sticker-btn-ok';
+        btnOk.textContent = '✓';
+        btnOk.title = 'Selesai';
+
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'sticker-resize-handle';
+
+        overlay.appendChild(btnCancel);
         overlay.appendChild(btnOk);
+        overlay.appendChild(img);
+        overlay.appendChild(resizeHandle);
         canvasContainer.appendChild(overlay);
 
         let isDragging = false;
-        let startX, startY, initialLeft, initialTop;
+        let isResizing = false;
+        let startX, startY, initialLeft, initialTop, initialWidth;
 
         overlay.addEventListener('pointerdown', function(e) {
-            if (e.target === btnOk) return;
+            if (e.target === btnOk || e.target === btnCancel) return;
             e.preventDefault();
-            isDragging = true;
-            overlay.setPointerCapture(e.pointerId);
+            if (e.target === resizeHandle) {
+                isResizing = true;
+                resizeHandle.setPointerCapture(e.pointerId);
+            } else {
+                isDragging = true;
+                overlay.setPointerCapture(e.pointerId);
+            }
             startX = e.clientX;
             startY = e.clientY;
 
@@ -565,23 +634,32 @@ document.addEventListener('DOMContentLoaded', async function() {
             const parentRect = canvasContainer.getBoundingClientRect();
             initialLeft = rect.left - parentRect.left;
             initialTop = rect.top - parentRect.top;
+            initialWidth = rect.width;
         });
 
         overlay.addEventListener('pointermove', function(e) {
-            if (!isDragging) return;
+            if (!isDragging && !isResizing) return;
             e.preventDefault();
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
-
             const parentRect = canvasContainer.getBoundingClientRect();
-            let newLeft = initialLeft + dx;
-            let newTop = initialTop + dy;
 
-            newLeft = Math.max(0, Math.min(parentRect.width - overlay.offsetWidth, newLeft));
-            newTop = Math.max(0, Math.min(parentRect.height - overlay.offsetHeight, newTop));
+            if (isDragging) {
+                let newLeft = initialLeft + dx;
+                let newTop = initialTop + dy;
 
-            overlay.style.left = `${(newLeft / parentRect.width) * 100}%`;
-            overlay.style.top = `${(newTop / parentRect.height) * 100}%`;
+                newLeft = Math.max(0, Math.min(parentRect.width - overlay.offsetWidth, newLeft));
+                newTop = Math.max(0, Math.min(parentRect.height - overlay.offsetHeight, newTop));
+
+                overlay.style.left = `${(newLeft / parentRect.width) * 100}%`;
+                overlay.style.top = `${(newTop / parentRect.height) * 100}%`;
+            } else if (isResizing) {
+                let newW = initialWidth + dx;
+                const minW = 30;
+                const maxW = parentRect.width - (parseFloat(overlay.style.left) / 100 * parentRect.width);
+                newW = Math.max(minW, Math.min(maxW, newW));
+                overlay.style.width = `${(newW / parentRect.width) * 100}%`;
+            }
         });
 
         function lockSticker() {
@@ -612,10 +690,19 @@ document.addEventListener('DOMContentLoaded', async function() {
             CanvasManager.setStickerMode(false);
         }
 
+        function cancelSticker() {
+            overlay.remove();
+            CanvasManager.setStickerMode(false);
+        }
+
         const handlePointerUp = function(e) {
             if (isDragging) {
                 isDragging = false;
                 try { overlay.releasePointerCapture(e.pointerId); } catch (err) {}
+            }
+            if (isResizing) {
+                isResizing = false;
+                try { resizeHandle.releasePointerCapture(e.pointerId); } catch (err) {}
             }
         };
 
@@ -627,16 +714,53 @@ document.addEventListener('DOMContentLoaded', async function() {
             vibrate(10);
             lockSticker();
         });
+
+        btnCancel.addEventListener('click', function(e) {
+            e.stopPropagation();
+            vibrate(10);
+            cancelSticker();
+        });
     }
 
-    selectBrushSize.addEventListener('change', function() {
-        CanvasManager.setLineWidth(parseInt(this.value));
-    });
+    const btnBrushSize = document.getElementById('btn-brush-size');
+    const brushSliderPanel = document.getElementById('brush-slider-panel');
+    const brushSizeSlider = document.getElementById('brush-size-slider');
+    const brushSizeVal = document.getElementById('brush-size-val');
+
+    if (btnBrushSize && brushSliderPanel) {
+        btnBrushSize.addEventListener('click', function(e) {
+            e.stopPropagation();
+            vibrate(10);
+            brushSliderPanel.classList.toggle('hidden');
+        });
+
+        document.addEventListener('pointerdown', function(e) {
+            if (!brushSliderPanel.classList.contains('hidden')) {
+                if (!e.target.closest('#brush-slider-panel, #btn-brush-size')) {
+                    brushSliderPanel.classList.add('hidden');
+                }
+            }
+        });
+    }
+
+    if (brushSizeSlider) {
+        brushSizeSlider.addEventListener('input', function() {
+            const val = parseInt(this.value);
+            if (brushSizeVal) brushSizeVal.textContent = val;
+            CanvasManager.setLineWidth(val);
+        });
+    }
 
     btnEraser.addEventListener('click', function() {
         vibrate(10);
-        if (btnFill) btnFill.classList.remove('active');
-        CanvasManager.setEraser(true);
+        const isEraserActive = (CanvasManager.getCurrentTool() === 'eraser');
+        if (isEraserActive) {
+            setActiveTool('brush');
+            CanvasManager.setEraser(false);
+        } else {
+            setActiveTool('eraser');
+            CanvasManager.setEraser(true);
+        }
     });
 
     btnUndo.addEventListener('click', function() {
@@ -731,10 +855,12 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     window.AppSocket.on('room_cancelled', function() {
         showToast('Room telah dibatalkan.');
+        document.body.classList.remove('is-drawer');
         resetToHome();
     });
 
     window.AppSocket.on('left_room_success', function() {
+        document.body.classList.remove('is-drawer');
         resetToHome();
     });
 
@@ -833,6 +959,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             wordMaskDisplay.textContent = "";
             if (drawingToolbar) drawingToolbar.classList.add('hidden');
             CanvasManager.setDrawerMode(false);
+            document.body.classList.remove('is-drawer');
         } else if (data.state === 'SELECTING_WORD') {
             modalLobby.classList.add('hidden');
             modalRoundEnded.classList.add('hidden');
@@ -845,6 +972,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             } else {
                 turnStatusText.textContent = `${data.current_drawer_name} sedang memilih kata...`;
             }
+            document.body.classList.remove('is-drawer');
         } else if (data.state === 'PLAYING') {
             modalLobby.classList.add('hidden');
             modalWordSelect.classList.add('hidden');
@@ -854,6 +982,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
             const isDrawer = (window.currentSid === data.current_drawer);
             CanvasManager.setDrawerMode(isDrawer);
+            document.body.classList.toggle('is-drawer', isDrawer);
 
             if (isDrawer) {
                 if (drawingToolbar) drawingToolbar.classList.remove('hidden');
@@ -894,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         console.log('[drawer-mode]', isDrawer, data.drawer_sid);
         CanvasManager.setDrawerMode(isDrawer);
+        document.body.classList.toggle('is-drawer', isDrawer);
 
         if (isDrawer) {
             if (drawingToolbar) drawingToolbar.classList.remove('hidden');
@@ -1084,6 +1214,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         vibrate([50, 100, 50]);
         revealWordDisplay.textContent = data.word.toUpperCase();
         roundSummaryList.innerHTML = '';
+        document.body.classList.remove('is-drawer');
 
         data.summary.forEach(item => {
             const div = document.createElement('div');
@@ -1245,6 +1376,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     window.AppSocket.on('game_over', function(data) {
         modalRoundEnded.classList.add('hidden');
         podiumContainer.innerHTML = '';
+        document.body.classList.remove('is-drawer');
 
         data.leaderboard.forEach((p, idx) => {
             const div = document.createElement('div');

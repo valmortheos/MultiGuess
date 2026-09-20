@@ -46,7 +46,8 @@
       "WrongAnswer/wg_jokowi.mp3",
       "WrongAnswer/wg_tetot.mp3"
     ],
-    "YourTurn": ["YourTurn/yt_amongus.mp3"]
+    "YourTurn": ["YourTurn/yt_amongus.mp3"],
+    "RoundAnnounce": []
   },
   "fallback_freq": {
     "Censored": 110,

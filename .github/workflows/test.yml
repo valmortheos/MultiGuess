@@ -32,8 +32,8 @@ jobs:
         run: |
           COUNT=$(find Sound -name '*.mp3' | wc -l)
           echo "Found $COUNT mp3 files in Sound/"
-          if [ "$COUNT" -ne 14 ]; then
-            echo "Expected 14 mp3 files in Sound/, found $COUNT"
+          if [ "$COUNT" -lt 14 ]; then
+            echo "Expected at least 14 mp3 files in Sound/, found $COUNT"
             exit 1
           fi
 

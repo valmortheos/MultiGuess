@@ -10,7 +10,7 @@ from modules.words import get_pool_size, pick_three_words
 class TestMultiGuessFeatures(unittest.TestCase):
 
     def test_version_bump(self):
-        self.assertEqual(APP_VERSION, "2.3.0")
+        self.assertEqual(APP_VERSION, "2.4.0")
 
     def test_sound_config_json(self):
         cfg = load_sound_config()
@@ -29,7 +29,7 @@ class TestMultiGuessFeatures(unittest.TestCase):
         self.assertTrue(has_bad_norm)
 
     def test_words_pool_json(self):
-        self.assertEqual(get_pool_size(), 176)
+        self.assertEqual(get_pool_size(), 225)
         words = pick_three_words()
         self.assertEqual(len(words), 3)
 

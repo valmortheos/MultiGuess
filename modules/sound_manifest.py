@@ -66,17 +66,15 @@ def get_sound_manifest():
 DEFAULT_SOUND_CONFIG = {
     "version": "1.0",
     "categories": {
-        "Censored": ["Censored/cn_boom.mp3"],
-        "CorrectAnswer": ["CorrectAnswer/cr_wow.mp3"],
-        "FailedRound": ["FailedRound/fl_sponge.mp3"],
-        "Random": [
-            "Random/rd_ack.mp3", "Random/rd_ahh.mp3", "Random/rd_laugh.mp3",
-            "Random/rd_meow.mp3", "Random/rd_metalclang.mp3", "Random/rd_taco.mp3"
-        ],
-        "TimeRemaining": ["TimeRemaining/tm_sponge.mp3"],
-        "WinnerScore": ["WinnerScore/ws_dubistgut.mp3"],
-        "WrongAnswer": ["WrongAnswer/wg_fahh.mp3", "WrongAnswer/wg_jokowi.mp3"],
-        "YourTurn": ["YourTurn/yt_amongus.mp3"]
+        "Censored": [],
+        "CorrectAnswer": [],
+        "FailedRound": [],
+        "Random": [],
+        "TimeRemaining": [],
+        "WinnerScore": [],
+        "WrongAnswer": [],
+        "YourTurn": [],
+        "RoundAnnounce": []
     },
     "fallback_freq": {
         "Censored": 110, "CorrectAnswer": 880, "FailedRound": 165, "Random": 520,
