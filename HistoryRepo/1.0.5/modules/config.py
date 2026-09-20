@@ -1,3 +1,0 @@
-# [v1.0.4-OLD] APP_VERSION = "1.0.4"
-APP_VERSION = "1.0.5"
-CACHE_DIR_NAME = "cache"
