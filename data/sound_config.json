@@ -1,26 +1,51 @@
 {
   "version": "1.0",
   "categories": {
-    "Censored": ["Censored/cn_boom.mp3"],
-    "CorrectAnswer": ["CorrectAnswer/cr_wow.mp3"],
+    "Censored": [
+      "Censored/cn_boom.mp3",
+      "Censored/cn_gunshot.mp3"
+    ],
+    "CorrectAnswer": [
+      "CorrectAnswer/cr_angrybird.mp3",
+      "CorrectAnswer/cr_wow.mp3",
+      "CorrectAnswer/cr_yooo.mp3",
+      "CorrectAnswer/cr_zehaha.mp3"
+    ],
     "FailedRound": ["FailedRound/fl_sponge.mp3"],
     "Random": [
       "Random/rd_ack.mp3",
       "Random/rd_ahh.mp3",
       "Random/rd_antek.mp3",
+      "Random/rd_brimo.mp3",
       "Random/rd_capek.mp3",
       "Random/rd_chicken.mp3",
       "Random/rd_dana.mp3",
+      "Random/rd_duarm.mp3",
+      "Random/rd_hidupjoko.mp3",
       "Random/rd_jokowi.mp3",
+      "Random/rd_jokowidiam.mp3",
+      "Random/rd_kobojw.mp3",
+      "Random/rd_krakatau.mp3",
       "Random/rd_laugh.mp3",
       "Random/rd_meow.mp3",
       "Random/rd_metalclang.mp3",
+      "Random/rd_rxking.mp3",
       "Random/rd_taco.mp3",
       "Random/rd_wiwok.mp3"
     ],
-    "TimeRemaining": ["TimeRemaining/tm_sponge.mp3"],
-    "WinnerScore": ["WinnerScore/ws_dubistgut.mp3"],
-    "WrongAnswer": ["WrongAnswer/wg_fahh.mp3", "WrongAnswer/wg_jokowi.mp3"],
+    "TimeRemaining": [
+      "TimeRemaining/tm_sponge.mp3",
+      "TimeRemaining/tm_upin.mp3"
+    ],
+    "WinnerScore": [
+      "WinnerScore/ws_champion.mp3",
+      "WinnerScore/ws_dubistgut.mp3"
+    ],
+    "WrongAnswer": [
+      "WrongAnswer/wg_fahh.mp3",
+      "WrongAnswer/wg_jokowi.mp3",
+      "WrongAnswer/wg_tetot.mp3"
+    ],
     "YourTurn": ["YourTurn/yt_amongus.mp3"]
   },
   "fallback_freq": {
