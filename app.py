@@ -147,7 +147,7 @@ def start_next_turn(room_code):
     # [v2.3.0] Rotate reaction sound assignments per round/turn
     assign_reactions(room_code)
 
-    # [v2.4.0] Round announcement event only on round increment
+    # [v2.4.1] Round announcement event only on round increment
     if room['current_round'] > prev_round:
         socketio.emit('round_announce', {
             'round': room['current_round'],
@@ -175,6 +175,8 @@ def start_next_turn(room_code):
     socketio.emit('clear_canvas', to=room_code)
     room_mgr.save_cache()
 
+    drawer_name = room['players'].get(drawer_sid, {}).get('name', 'Pemain') if drawer_sid in room['players'] else 'Pemain'
+
     socketio.emit('choose_word_prompt', {
         'words': room['word_options'],
         'timeout': 15,
@@ -182,21 +184,46 @@ def start_next_turn(room_code):
         'max_rerolls': 2
     }, to=drawer_sid)
 
+    socketio.emit('word_select_timer_start', {
+        'duration': 15,
+        'started_at': time.time(),
+        'drawer_sid': drawer_sid,
+        'drawer_name': drawer_name
+    }, to=room_code)
+
     socketio.start_background_task(target=word_select_timer_task, room_code=room_code, drawer_sid=drawer_sid)
 
 def word_select_timer_task(room_code, drawer_sid):
     # TODO: Thread timer uses time.sleep(); acceptable for small scale LAN play.
     time.sleep(15)
     room = room_mgr.get_room(room_code)
-    if room and room['state'] == 'SELECTING_WORD' and room['current_drawer'] == drawer_sid:
-        chosen = room['word_options'][0]
-        on_word_chosen(room_code, drawer_sid, chosen)
+    if not room or room['state'] != 'SELECTING_WORD':
+        return
+
+    current_drawer_sid = room.get('current_drawer')
+    if current_drawer_sid not in room['players']:
+        return
+
+    player = room['players'][current_drawer_sid]
+    is_disc = player.get('disconnected', False)
+    name = player.get('name', 'Pemain')
+
+    if is_disc:
+        msg_text = f"{name} (drawer) terputus, lanjut ke pemain berikutnya"
+    else:
+        msg_text = f"{name} (drawer) AFK, lanjut ke pemain berikutnya"
+
+    socketio.emit('system_message', {'text': msg_text}, to=room_code)
+    socketio.emit('word_select_timer_cancel', {}, to=room_code)
+    room['drawer_index'] += 1
+    start_next_turn(room_code)
 
 def on_word_chosen(room_code, drawer_sid, chosen_word):
     room = room_mgr.get_room(room_code)
     if not room or room['state'] != 'SELECTING_WORD' or room['current_drawer'] != drawer_sid:
         return
 
+    socketio.emit('word_select_timer_cancel', {}, to=room_code)
     record_word_used(chosen_word)
 
     room['current_word'] = chosen_word

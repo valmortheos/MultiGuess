@@ -4,6 +4,8 @@ const SoundPlayer = (function() {
     let isSoundEnabled = true;
     const SOUND_CACHE_VERSION = 'v2.2.2';
     const bufferCache = new Map(); // path -> AudioBuffer
+    const categoryPools = new Map();
+    const lastPlayedByCategory = new Map();
 
     let soundConfig = null;
     let pendingPlaybackQueue = [];
@@ -261,6 +263,29 @@ const SoundPlayer = (function() {
         }
     }
 
+    function getNextFromPool(category, options) {
+        if (!options || options.length === 0) return null;
+        if (options.length === 1) {
+            lastPlayedByCategory.set(category, options[0]);
+            return options[0];
+        }
+
+        let pool = categoryPools.get(category);
+        if (!pool || pool.length === 0) {
+            pool = shuffle([...options]);
+            const lastPlayed = lastPlayedByCategory.get(category);
+            if (lastPlayed && pool.length > 1 && pool[pool.length - 1] === lastPlayed) {
+                const swapIdx = Math.floor(Math.random() * (pool.length - 1));
+                [pool[pool.length - 1], pool[swapIdx]] = [pool[swapIdx], pool[pool.length - 1]];
+            }
+            categoryPools.set(category, pool);
+        }
+
+        const nextPath = pool.pop();
+        lastPlayedByCategory.set(category, nextPath);
+        return nextPath;
+    }
+
     async function play(category, userId = null) {
         console.log('[sound]', category, 'unlocked=', audioUnlocked);
         if (!isSoundEnabled) {
@@ -279,7 +304,7 @@ const SoundPlayer = (function() {
             const currentUserId = userId || getOrCreateUserId();
             const userSounds = await getUserRandomSounds(currentUserId);
             if (userSounds && userSounds.length > 0) {
-                targetPath = userSounds[Math.floor(Math.random() * userSounds.length)];
+                targetPath = getNextFromPool('Random', userSounds);
             }
         } else if (soundConfig.categories && soundConfig.categories[category]) {
             const options = soundConfig.categories[category];
@@ -287,7 +312,7 @@ const SoundPlayer = (function() {
                 console.warn(`[SoundPlayer] No sound options for category: ${category}`);
                 return;
             }
-            targetPath = options[Math.floor(Math.random() * options.length)];
+            targetPath = getNextFromPool(category, options);
         }
 
         if (!targetPath) {
