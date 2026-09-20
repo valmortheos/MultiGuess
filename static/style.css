@@ -1329,7 +1329,8 @@ input[type="text"]:focus {
 .sticker-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 4px 8px;
+    align-content: start;
     overflow-y: auto;
     flex: 1;
 }

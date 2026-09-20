@@ -9,7 +9,7 @@
 // [v2.2.2-OLD] const APP_VERSION = "2.2.2";
 // [v2.2.3-OLD] const APP_VERSION = "2.2.3";
 // [v2.3.0-OLD] const APP_VERSION = "2.3.0";
-const APP_VERSION = "2.4.0";
+const APP_VERSION = "2.4.1";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -583,16 +583,40 @@ document.addEventListener('DOMContentLoaded', async function() {
         const existing = document.getElementById('sticker-overlay');
         if (existing) existing.remove();
 
+        const parentRect = canvasContainer.getBoundingClientRect();
+
+        let aspectRatio = 1;
+        const cachedImg = CanvasManager.getStickerCache().get(stickerPath);
+        if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0 && cachedImg.naturalHeight > 0) {
+            aspectRatio = cachedImg.naturalWidth / cachedImg.naturalHeight;
+        }
+
         const overlay = document.createElement('div');
         overlay.id = 'sticker-overlay';
         overlay.className = 'sticker-overlay';
-        overlay.style.left = '42.5%';
-        overlay.style.top = '42.5%';
-        overlay.style.width = '20%';
-        overlay.style.aspectRatio = '1';
+
+        let initW = parentRect.width * 0.15;
+        let initH = initW / aspectRatio;
+        let initLeft = (parentRect.width - initW) / 2;
+        let initTop = (parentRect.height - initH) / 2;
+
+        overlay.style.left = `${(initLeft / parentRect.width) * 100}%`;
+        overlay.style.top = `${(initTop / parentRect.height) * 100}%`;
+        overlay.style.width = `${(initW / parentRect.width) * 100}%`;
+        overlay.style.height = `${(initH / parentRect.height) * 100}%`;
 
         const img = document.createElement('img');
         img.src = stickerPath;
+        img.onload = function() {
+            if (img.naturalWidth && img.naturalHeight) {
+                aspectRatio = img.naturalWidth / img.naturalHeight;
+                const pRect = canvasContainer.getBoundingClientRect();
+                const currentOverlayRect = overlay.getBoundingClientRect();
+                const curW = currentOverlayRect.width;
+                const newH = curW / aspectRatio;
+                overlay.style.height = `${(newH / pRect.height) * 100}%`;
+            }
+        };
 
         const btnCancel = document.createElement('button');
         btnCancel.className = 'sticker-overlay-btn sticker-btn-cancel';
@@ -615,7 +639,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         let isDragging = false;
         let isResizing = false;
-        let startX, startY, initialLeft, initialTop, initialWidth;
+        let startX, startY, initialLeft, initialTop, initialWidth, initialHeight;
 
         overlay.addEventListener('pointerdown', function(e) {
             if (e.target === btnOk || e.target === btnCancel) return;
@@ -631,10 +655,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             startY = e.clientY;
 
             const rect = overlay.getBoundingClientRect();
-            const parentRect = canvasContainer.getBoundingClientRect();
-            initialLeft = rect.left - parentRect.left;
-            initialTop = rect.top - parentRect.top;
+            const pRect = canvasContainer.getBoundingClientRect();
+            initialLeft = rect.left - pRect.left;
+            initialTop = rect.top - pRect.top;
             initialWidth = rect.width;
+            initialHeight = rect.height;
         });
 
         overlay.addEventListener('pointermove', function(e) {
@@ -642,23 +667,36 @@ document.addEventListener('DOMContentLoaded', async function() {
             e.preventDefault();
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
-            const parentRect = canvasContainer.getBoundingClientRect();
+            const pRect = canvasContainer.getBoundingClientRect();
 
             if (isDragging) {
                 let newLeft = initialLeft + dx;
                 let newTop = initialTop + dy;
 
-                newLeft = Math.max(0, Math.min(parentRect.width - overlay.offsetWidth, newLeft));
-                newTop = Math.max(0, Math.min(parentRect.height - overlay.offsetHeight, newTop));
+                newLeft = Math.max(0, Math.min(pRect.width - overlay.offsetWidth, newLeft));
+                newTop = Math.max(0, Math.min(pRect.height - overlay.offsetHeight, newTop));
 
-                overlay.style.left = `${(newLeft / parentRect.width) * 100}%`;
-                overlay.style.top = `${(newTop / parentRect.height) * 100}%`;
+                overlay.style.left = `${(newLeft / pRect.width) * 100}%`;
+                overlay.style.top = `${(newTop / pRect.height) * 100}%`;
             } else if (isResizing) {
                 let newW = initialWidth + dx;
                 const minW = 30;
-                const maxW = parentRect.width - (parseFloat(overlay.style.left) / 100 * parentRect.width);
+                const maxW = pRect.width - initialLeft;
                 newW = Math.max(minW, Math.min(maxW, newW));
-                overlay.style.width = `${(newW / parentRect.width) * 100}%`;
+
+                const isTouch = e.pointerType === 'touch';
+                if (!isTouch && e.shiftKey) {
+                    // Free resize on desktop with Shift key
+                    let newH = initialHeight + dy;
+                    newH = Math.max(20, Math.min(pRect.height - initialTop, newH));
+                    overlay.style.width = `${(newW / pRect.width) * 100}%`;
+                    overlay.style.height = `${(newH / pRect.height) * 100}%`;
+                } else {
+                    // Proportional resize (mobile & default desktop)
+                    let newH = newW / aspectRatio;
+                    overlay.style.width = `${(newW / pRect.width) * 100}%`;
+                    overlay.style.height = `${(newH / pRect.height) * 100}%`;
+                }
             }
         });
 
@@ -1017,6 +1055,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     window.AppSocket.on('round_started', function(data) {
+        if (wordSelectTimer) {
+            clearInterval(wordSelectTimer);
+            wordSelectTimer = null;
+        }
         countdownOverlay.classList.add('hidden');
         const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : null);
         const isDrawer = (mySid === data.drawer_sid);
@@ -1066,6 +1108,41 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     const btnRerollWords = document.getElementById('btn-reroll-words');
     const rerollCountText = document.getElementById('reroll-count-text');
+
+    let wordSelectTimer = null;
+
+    window.AppSocket.on('word_select_timer_start', function(data) {
+        if (wordSelectTimer) {
+            clearInterval(wordSelectTimer);
+            wordSelectTimer = null;
+        }
+        const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : null);
+        if (data.drawer_sid === mySid) return;
+
+        function updateCountdown() {
+            const elapsed = Date.now() / 1000 - data.started_at;
+            const remaining = Math.max(0, Math.min(data.duration, Math.floor(data.duration - elapsed)));
+            if (turnStatusText) {
+                turnStatusText.textContent = `${data.drawer_name} sedang memilih kata: ${remaining}s...`;
+            }
+            if (remaining <= 0) {
+                if (wordSelectTimer) {
+                    clearInterval(wordSelectTimer);
+                    wordSelectTimer = null;
+                }
+            }
+        }
+
+        updateCountdown();
+        wordSelectTimer = setInterval(updateCountdown, 1000);
+    });
+
+    window.AppSocket.on('word_select_timer_cancel', function() {
+        if (wordSelectTimer) {
+            clearInterval(wordSelectTimer);
+            wordSelectTimer = null;
+        }
+    });
 
     if (btnRerollWords) {
         btnRerollWords.addEventListener('click', function() {
