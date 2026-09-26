@@ -17,8 +17,10 @@
     <!-- [v2.2.2-OLD] <title>MultiGuess v2.2.2 - Game Draw & Guess</title> -->
     <!-- [v2.2.3-OLD] <title>MultiGuess v2.2.3 - Game Draw & Guess</title> -->
     <!-- [v2.3.0-OLD] <title>MultiGuess v2.3.0 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.4.1 - Game Draw & Guess</title>
-    <link rel="stylesheet" href="/static/style.css?v=241">
+    <!-- [v2.4.1-OLD] <title>MultiGuess v2.4.1 - Game Draw & Guess</title> -->
+    <!-- [v2.5.0-OLD] <title>MultiGuess v2.5.0 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.5.2 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css?v=252">
     <!-- Socket.IO Local Library -->
     <script src="/static/socket.io.min.js"></script>
 </head>
@@ -191,6 +193,20 @@
                     <button type="button" class="btn-reaction" data-slot="1" title="Reaction 1">1</button>
                     <button type="button" class="btn-reaction" data-slot="2" title="Reaction 2">2</button>
                     <button type="button" class="btn-reaction" data-slot="3" title="Reaction 3">3</button>
+                    <button type="button" id="btn-voice-toggle" class="btn-action-av" title="Voice Chat">🎤</button>
+                    <button type="button" id="btn-video-toggle" class="btn-action-av" title="Video Call">📹</button>
+                </div>
+
+                <!-- Draggable Floating Video Call Overlay (v2.5.1) -->
+                <div id="video-floating-overlay" class="video-floating-overlay hidden">
+                    <div id="video-overlay-header" class="video-overlay-header">
+                        <span class="video-overlay-title">📹 Video Call</span>
+                        <div class="video-overlay-actions">
+                            <button type="button" id="btn-minimize-video-overlay" class="btn-overlay-icon" title="Minimize/Expand">_</button>
+                            <button type="button" id="btn-close-video-overlay" class="btn-overlay-icon btn-overlay-close" title="Tutup Video">✕</button>
+                        </div>
+                    </div>
+                    <div id="video-grid" class="video-grid"></div>
                 </div>
             </section>
 
@@ -217,8 +233,18 @@
                     <!-- Guess Toast Notification -->
                     <div id="toast-hampir-benar" class="toast toast-warning hidden">Hampir benar! (Beda 1-2 huruf)</div>
 
+                    <!-- Chat Sticker Popup Panel -->
+                    <div id="chat-sticker-panel" class="chat-sticker-panel hidden">
+                        <div class="chat-sticker-panel-header">
+                            <span>Pilih Sticker</span>
+                            <button type="button" id="btn-close-chat-stickers" class="btn-icon-danger">✕</button>
+                        </div>
+                        <div id="chat-sticker-grid" class="chat-sticker-grid"></div>
+                    </div>
+
                     <!-- Input Box -->
                     <form id="chat-form" class="chat-form">
+                        <button type="button" id="btn-chat-sticker" class="btn-chat-sticker" title="Pilih Sticker">😀</button>
                         <input type="text" id="chat-input" placeholder="Ketik tebakan atau pesan..." autocomplete="off" maxlength="100">
                         <button type="submit" id="btn-send" class="btn btn-primary">Kirim</button>
                     </form>
@@ -296,9 +322,14 @@
             <!-- [v2.2.2-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.2</div> -->
             <!-- [v2.2.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.3</div> -->
             <!-- [v2.3.0-OLD] <div class="footer-version">MultiGuess v2.3.0</div> -->
-            <div class="footer-version">MultiGuess v2.4.1</div>
+            <!-- [v2.4.1-OLD] <div class="footer-version">MultiGuess v2.4.1</div> -->
+            <!-- [v2.5.0-OLD] <div class="footer-version">MultiGuess v2.5.0</div> -->
+            <!-- [v2.5.1-OLD] <div class="footer-version">MultiGuess v2.5.1</div> -->
+            <div class="footer-version">MultiGuess v2.5.2</div>
             <!-- [v2.3.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.4.1</div>
+            <!-- [v2.5.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.0</div> -->
+            <!-- [v2.5.1-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.1</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.2</div>
         </div>
     </div>
 
@@ -421,10 +452,11 @@
         </div>
     </div>
 
-    <script src="/static/storage.js?v=241"></script>
-    <script src="/static/sound-loader.js?v=241"></script>
-    <script src="/static/sound-player.js?v=241"></script>
-    <script src="/static/canvas.js?v=241"></script>
-    <script src="/static/app.js?v=241"></script>
+    <script src="/static/storage.js?v=252"></script>
+    <script src="/static/sound-loader.js?v=252"></script>
+    <script src="/static/sound-player.js?v=252"></script>
+    <script src="/static/canvas.js?v=252"></script>
+    <script src="/static/voice.js?v=252"></script>
+    <script src="/static/app.js?v=252"></script>
 </body>
 </html>

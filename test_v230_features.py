@@ -21,7 +21,7 @@ class TestV230Features(unittest.TestCase):
                 pass
 
     def test_version(self):
-        self.assertEqual(APP_VERSION, "2.4.1")
+        self.assertEqual(APP_VERSION, "2.5.2")
 
     def test_stats_recording(self):
         record_word_used("kucing")

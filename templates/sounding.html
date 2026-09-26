@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Sounding - MultiGuess</title>
+    <link rel="stylesheet" href="/static/style.css?v=252">
+    <style>
+        body.sounding-page {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f3f4f6;
+            margin: 0;
+            padding: 20px;
+            color: #1f2937;
+            overflow: auto !important;
+            height: auto !important;
+            min-height: 100dvh;
+            overscroll-behavior: auto !important;
+        }
+        .sounding-container { max-width: 960px; margin: 0 auto; }
+        .card { background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .dev-warning-banner { background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 12px 16px; border-radius: 8px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+        h1, h2 { margin-top: 0; color: #111827; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end; margin-top: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 13px; font-weight: 600; color: #374151; }
+        .form-control { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+        .table-container {
+            max-height: 60vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-size: 14px; }
+        th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #e5e7eb; }
+        tr:nth-child(even) { background: #f9fafb; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-ok { background: #dcfce7; color: #166534; }
+        .badge-missing { background: #fee2e2; color: #991b1b; }
+        .badge-orphan { background: #fef3c7; color: #92400e; }
+        .btn-delete { background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-delete:hover { background: #dc2626; }
+        .btn-sync { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-sync:hover { background: #2563eb; }
+        .btn-upload { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-upload:hover { background: #16a34a; }
+        audio { height: 32px; width: 160px; }
+        .search-filter-bar { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    </style>
+</head>
+<body class="sounding-page">
+    <div class="sounding-container">
+        <div class="dev-warning-banner">
+            ⚠️ Warning: Halaman Admin Sounding hanya aktif dalam Mode Pengembangan (DEV_MODE).
+        </div>
+
+        <div class="header-bar">
+            <div>
+                <h1>Management Audio Server (/sounding)</h1>
+                <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">Manage audio files, upload mp3 baru, sync folder Sound/, atau hapus audio.</p>
+            </div>
+            <div>
+                <a href="/" class="btn btn-secondary">← Kembali ke Game</a>
+                <button id="btn-sync-config" class="btn-sync" style="margin-left: 8px;">🔄 Sync Config</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Tambah Audio Baru</h2>
+            <form id="upload-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="upload-file">File MP3 (Max 5MB)</label>
+                        <input type="file" id="upload-file" accept="audio/mpeg" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload-category">Kategori</label>
+                        <select id="upload-category" class="form-control"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="custom-category">Kategori Baru (Opsional)</label>
+                        <input type="text" id="custom-category" placeholder="mis. CustomCat" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="custom-filename">Nama File Custom (Opsional)</label>
+                        <input type="text" id="custom-filename" placeholder="mis. audio1.mp3" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" id="btn-upload-submit" class="btn-upload">Unggah Audio</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Daftar Audio Existing</h2>
+            <div class="search-filter-bar">
+                <input type="text" id="sounding-search" class="form-control" placeholder="🔍 Cari nama file atau kategori..." style="flex: 2; min-width: 200px;">
+                <select id="sounding-filter-cat" class="form-control" style="flex: 1; min-width: 150px;">
+                    <option value="">Semua Kategori</option>
+                </select>
+            </div>
+            <div id="status-msg" style="margin-bottom: 10px; font-weight: 600;"></div>
+            <div class="table-container">
+                <table id="audio-table">
+                    <thead>
+                        <tr>
+                            <th>Kategori</th>
+                            <th>Nama File</th>
+                            <th>Ukuran</th>
+                            <th>Pratinjau</th>
+                            <th>Status</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audio-list-body">
+                        <tr><td colspan="6" style="text-align: center;">Memuat daftar audio...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allAudioItems = [];
+
+        async function fetchAudioList() {
+            const tbody = document.getElementById('audio-list-body');
+            const catSelect = document.getElementById('upload-category');
+            const filterCat = document.getElementById('sounding-filter-cat');
+
+            try {
+                const res = await fetch('/api/sounding/list');
+                if (!res.ok) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Gagal memuat list (404/Error)</td></tr>';
+                    return;
+                }
+                const data = await res.json();
+                allAudioItems = [];
+
+                catSelect.innerHTML = '';
+                filterCat.innerHTML = '<option value="">Semua Kategori</option>';
+
+                const categories = data.categories || {};
+                const orphans = data.orphans || [];
+
+                const catNames = Object.keys(categories);
+                catNames.forEach(cat => {
+                    const opt1 = document.createElement('option');
+                    opt1.value = cat;
+                    opt1.textContent = cat;
+                    catSelect.appendChild(opt1);
+
+                    const opt2 = document.createElement('option');
+                    opt2.value = cat;
+                    opt2.textContent = cat;
+                    filterCat.appendChild(opt2);
+                });
+
+                for (const cat in categories) {
+                    const files = categories[cat];
+                    files.forEach(item => {
+                        allAudioItems.push({
+                            category: cat,
+                            filename: item.filename,
+                            size: item.size,
+                            status: item.status,
+                            isOrphan: false,
+                            path: `/Sound/${cat}/${item.filename}`
+                        });
+                    });
+                }
+
+                orphans.forEach(item => {
+                    const parts = item.path.split('/');
+                    const cat = parts.length > 1 ? parts[0] : 'Root';
+                    const fname = parts.length > 1 ? parts[1] : parts[0];
+                    allAudioItems.push({
+                        category: cat,
+                        filename: fname,
+                        size: item.size,
+                        status: 'orphan',
+                        isOrphan: true,
+                        path: `/Sound/${item.path}`
+                    });
+                });
+
+                // Init search input from URL parameter ?q=...
+                const urlParams = new URLSearchParams(window.location.search);
+                const queryParam = urlParams.get('q');
+                if (queryParam) {
+                    document.getElementById('sounding-search').value = queryParam;
+                }
+
+                renderFilteredTable();
+
+            } catch (err) {
+                console.error('[Sounding] Error fetching list:', err);
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Terjadi kesalahan saat memuat data.</td></tr>';
+            }
+        }
+
+        function renderFilteredTable() {
+            const tbody = document.getElementById('audio-list-body');
+            const searchVal = document.getElementById('sounding-search').value.trim().toLowerCase();
+            const selectedCat = document.getElementById('sounding-filter-cat').value;
+
+            // Sync URL query string
+            if (searchVal) {
+                window.history.replaceState(null, '', `?q=${encodeURIComponent(searchVal)}`);
+            } else {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+
+            tbody.innerHTML = '';
+            let displayedCount = 0;
+
+            allAudioItems.forEach(item => {
+                const matchQuery = !searchVal || item.filename.toLowerCase().includes(searchVal) || item.category.toLowerCase().includes(searchVal);
+                const matchCat = !selectedCat || item.category === selectedCat;
+
+                if (matchQuery && matchCat) {
+                    displayedCount++;
+                    const tr = document.createElement('tr');
+                    const formattedSize = item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-';
+
+                    let badgeClass = 'badge-ok';
+                    let badgeText = 'OK';
+                    if (item.status === 'missing') {
+                        badgeClass = 'badge-missing';
+                        badgeText = 'File Hilang';
+                    } else if (item.status === 'orphan' || item.isOrphan) {
+                        badgeClass = 'badge-orphan';
+                        badgeText = 'Orphan';
+                    }
+
+                    tr.innerHTML = `
+                        <td><strong>${item.category}</strong></td>
+                        <td>${item.filename}</td>
+                        <td>${formattedSize}</td>
+                        <td>
+                            ${item.status === 'ok' || item.isOrphan ? `<audio src="${item.path}" controls preload="none"></audio>` : '-'}
+                        </td>
+                        <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+                        <td>
+                            <button class="btn-delete" onclick="deleteAudio('${item.category}', '${item.filename}')">🗑️ Hapus</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            if (displayedCount === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#6b7280;">Tidak ada audio yang cocok dengan pencarian.</td></tr>';
+            }
+        }
+
+        async function deleteAudio(category, filename) {
+            if (!confirm(`Apakah Anda yakin ingin menghapus file audio "${category}/${filename}"?`)) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/sounding/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category, filename })
+                });
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    alert(result.message || 'File berhasil dihapus');
+                    fetchAudioList();
+                } else {
+                    alert('Gagal menghapus: ' + (result.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error menghapus audio: ' + err.message);
+            }
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('upload-file');
+            const catSelect = document.getElementById('upload-category');
+            const customCatInput = document.getElementById('custom-category');
+            const customFilenameInput = document.getElementById('custom-filename');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Pilih file mp3 terlebih dahulu.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const category = customCatInput.value.trim() || catSelect.value || 'Random';
+            const customFilename = customFilenameInput.value.trim();
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('category', category);
+            if (customFilename) {
+                formData.append('custom_name', customFilename);
+            }
+
+            try {
+                const res = await fetch('/api/sounding/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    alert(result.message || 'Upload berhasil.');
+                    document.getElementById('upload-form').reset();
+                    fetchAudioList();
+                } else {
+                    alert('Upload gagal: ' + (result.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error upload: ' + err.message);
+            }
+        });
+
+        document.getElementById('btn-sync-config').addEventListener('click', async function() {
+            try {
+                const res = await fetch('/api/sounding/sync', { method: 'POST' });
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    alert(result.message || 'Sync berhasil.');
+                    fetchAudioList();
+                } else {
+                    alert('Sync gagal: ' + (result.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error sync: ' + err.message);
+            }
+        });
+
+        document.getElementById('sounding-search').addEventListener('input', renderFilteredTable);
+        document.getElementById('sounding-filter-cat').addEventListener('change', renderFilteredTable);
+
+        document.addEventListener('DOMContentLoaded', fetchAudioList);
+    </script>
+</body>
+</html>

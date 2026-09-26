@@ -11,7 +11,9 @@
       "CorrectAnswer/cr_yooo.mp3",
       "CorrectAnswer/cr_zehaha.mp3"
     ],
-    "FailedRound": ["FailedRound/fl_sponge.mp3"],
+    "FailedRound": [
+      "FailedRound/fl_sponge.mp3"
+    ],
     "Random": [
       "Random/rd_ack.mp3",
       "Random/rd_ahh.mp3",
@@ -31,7 +33,8 @@
       "Random/rd_metalclang.mp3",
       "Random/rd_rxking.mp3",
       "Random/rd_taco.mp3",
-      "Random/rd_wiwok.mp3"
+      "Random/rd_wiwok.mp3",
+      "Random/test_upload.mp3"
     ],
     "TimeRemaining": [
       "TimeRemaining/tm_sponge.mp3",
@@ -46,7 +49,9 @@
       "WrongAnswer/wg_jokowi.mp3",
       "WrongAnswer/wg_tetot.mp3"
     ],
-    "YourTurn": ["YourTurn/yt_amongus.mp3"],
+    "YourTurn": [
+      "YourTurn/yt_amongus.mp3"
+    ],
     "RoundAnnounce": []
   },
   "fallback_freq": {

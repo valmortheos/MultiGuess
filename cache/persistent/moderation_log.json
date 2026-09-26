@@ -318,5 +318,13 @@
     "text": "Mati",
     "matched_word": "mati",
     "room_code": "DAXC"
+  },
+  {
+    "timestamp": 1790390734.8539336,
+    "event_type": "censored_chat",
+    "username": "Alice",
+    "text": "babi",
+    "matched_word": "babi",
+    "room_code": "UXDM"
   }
 ]

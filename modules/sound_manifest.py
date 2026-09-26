@@ -91,3 +91,51 @@ def load_sound_config():
         except Exception as e:
             print(f"[SoundManifest] Error loading sound_config.json: {e}")
     return DEFAULT_SOUND_CONFIG
+
+def save_sound_config_atomic(config_data):
+    config_path = Path(__file__).resolve().parent.parent / "data" / "sound_config.json"
+    temp_path = config_path.with_suffix('.json.tmp')
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(temp_path, 'w', encoding='utf-8') as f:
+        json.dump(config_data, f, indent=2)
+    os.replace(temp_path, config_path)
+
+def backup_and_delete_sound_file(category, filename):
+    import time
+    import shutil
+    file_path = SOUND_DIR / category / filename
+    trash_dir = SOUND_DIR / ".trash"
+    trash_dir.mkdir(parents=True, exist_ok=True)
+
+    if not file_path.exists():
+        return None
+
+    timestamp = int(time.time())
+    trash_path = trash_dir / f"{timestamp}_{filename}"
+    shutil.move(str(file_path), str(trash_path))
+    return trash_path
+
+def restore_sound_file_from_trash(trash_path, category, filename):
+    import shutil
+    if not trash_path or not Path(trash_path).exists():
+        return False
+    target_path = SOUND_DIR / category / filename
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(trash_path), str(target_path))
+    return True
+
+def cleanup_trash(max_age_days=7):
+    import time
+    trash_dir = SOUND_DIR / ".trash"
+    if not trash_dir.exists():
+        return
+    now = time.time()
+    max_age_sec = max_age_days * 86400
+    for root, _, files in os.walk(str(trash_dir)):
+        for f in files:
+            full_p = os.path.join(root, f)
+            try:
+                if now - os.path.getmtime(full_p) > max_age_sec:
+                    os.remove(full_p)
+            except Exception as e:
+                print(f"[SoundManifest] Error cleaning up trash file {f}: {e}")

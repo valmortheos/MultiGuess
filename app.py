@@ -1,7 +1,8 @@
 import os
 import time
 import threading
-from flask import Flask, render_template, request, jsonify, send_from_directory
+import re
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 from modules.config import APP_VERSION, DEV_MODE, DISCONNECT_GRACE_SECONDS, MAX_PLAYERS
@@ -10,7 +11,11 @@ from modules.words import pick_three_words
 from modules.scoring import is_similar_guess, calculate_guesser_points, calculate_drawer_points
 from modules.cache import init_cache, get_cache_summary, persistent_load, persistent_save
 from modules.game_state import RoomManager, normalize_room_code
-from modules.sound_manifest import get_sound_manifest, load_sound_config, SOUND_DIR
+from modules.sound_manifest import (
+    get_sound_manifest, load_sound_config, SOUND_DIR,
+    save_sound_config_atomic, backup_and_delete_sound_file,
+    restore_sound_file_from_trash, cleanup_trash
+)
 from modules.stickers import STICKER_DIR, list_stickers
 from modules.profanity import contains_profanity, is_profane, log_moderation
 from modules.stats import load_stats, record_word_used, record_word_censored
@@ -445,6 +450,205 @@ def sound_config():
 @app.route('/api/stats')
 def api_stats():
     return jsonify(load_stats())
+
+# [v2.5.0] Admin Page: /sounding & API Endpoints
+@app.route('/sounding')
+def sounding_page():
+    if not DEV_MODE:
+        abort(404)
+    return render_template('sounding.html')
+
+@app.route('/api/sounding/list')
+def sounding_api_list():
+    if not DEV_MODE:
+        abort(404)
+
+    cfg = load_sound_config()
+    categories_cfg = cfg.get('categories', {})
+
+    result_categories = {}
+    configured_paths = set()
+
+    for cat, file_list in categories_cfg.items():
+        result_categories[cat] = []
+        if isinstance(file_list, list):
+            for rel_path in file_list:
+                filename = os.path.basename(rel_path)
+                full_p = SOUND_DIR / cat / filename
+                if full_p.exists():
+                    size = os.path.getsize(full_p)
+                    status = "ok"
+                else:
+                    size = 0
+                    status = "missing"
+                configured_paths.add(f"{cat}/{filename}".lower())
+                result_categories[cat].append({
+                    "filename": filename,
+                    "size": size,
+                    "status": status
+                })
+
+    orphans = []
+    if SOUND_DIR.exists():
+        for root, _, files in os.walk(str(SOUND_DIR)):
+            rel_dir = os.path.relpath(root, str(SOUND_DIR)).replace('\\', '/')
+            if rel_dir.startswith('.trash') or rel_dir.startswith('.'):
+                continue
+            for f in files:
+                if f.startswith('.') or not f.lower().endswith('.mp3'):
+                    continue
+                rel_p = f if rel_dir == '.' else f"{rel_dir}/{f}"
+                if rel_p.lower() not in configured_paths:
+                    full_p = os.path.join(root, f)
+                    orphans.append({
+                        "path": rel_p,
+                        "size": os.path.getsize(full_p) if os.path.exists(full_p) else 0
+                    })
+
+    return jsonify({
+        "categories": result_categories,
+        "orphans": orphans
+    })
+
+@app.route('/api/sounding/delete', methods=['POST'])
+def sounding_api_delete():
+    if not DEV_MODE:
+        abort(404)
+
+    data = request.get_json(silent=True) or {}
+    category = data.get('category', '').strip()
+    filename = data.get('filename', '').strip()
+
+    if not category or not filename:
+        return jsonify({"success": False, "message": "Category dan filename wajib diisi."}), 400
+
+    filename = os.path.basename(filename)
+    if not re.match(r'^[a-zA-Z0-9_\-]+\.mp3$', filename, re.IGNORECASE):
+        return jsonify({"success": False, "message": "Filename tidak valid."}), 400
+
+    category = re.sub(r'[^a-zA-Z0-9_\-]', '', category)
+
+    trash_path = backup_and_delete_sound_file(category, filename)
+
+    cfg = load_sound_config()
+    if 'categories' not in cfg:
+        cfg['categories'] = {}
+    if category not in cfg['categories']:
+        cfg['categories'][category] = []
+
+    cfg['categories'][category] = [p for p in cfg['categories'][category] if os.path.basename(p).lower() != filename.lower()]
+
+    try:
+        save_sound_config_atomic(cfg)
+    except Exception as e:
+        restore_sound_file_from_trash(trash_path, category, filename)
+        return jsonify({"success": False, "message": f"Gagal update config: {e}"}), 500
+
+    get_sound_manifest()
+    socketio.emit('sound_config_updated', {}, to=None)
+    return jsonify({"success": True, "message": f"File {filename} berhasil dihapus."})
+
+@app.route('/api/sounding/upload', methods=['POST'])
+def sounding_api_upload():
+    if not DEV_MODE:
+        abort(404)
+
+    if 'file' not in request.files:
+        return jsonify({"success": False, "message": "File mp3 wajib diunggah."}), 400
+
+    file = request.files['file']
+    category = (request.form.get('category') or 'Random').strip()
+    custom_name = (request.form.get('custom_name') or '').strip()
+
+    category = re.sub(r'[^a-zA-Z0-9_\-]', '', category) or 'Random'
+
+    # 1. Content-Type header check
+    content_type = file.content_type or ''
+    if 'audio' not in content_type and 'mpeg' not in content_type and 'octet-stream' not in content_type:
+        return jsonify({"success": False, "message": "MIME type harus audio/mpeg."}), 400
+
+    # 2. File size limit check (Max 5MB)
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > 5 * 1024 * 1024:
+        return jsonify({"success": False, "message": "Ukuran file melebihi batas 5MB."}), 400
+
+    # 3. Magic bytes check (ID3 or MPEG frame sync)
+    first_3_bytes = file.read(3)
+    file.seek(0)
+
+    is_id3 = (first_3_bytes == b'ID3')
+    is_mpeg_sync = (len(first_3_bytes) >= 2 and first_3_bytes[0] == 0xFF and (first_3_bytes[1] & 0xE0) == 0xE0)
+
+    if not (is_id3 or is_mpeg_sync):
+        return jsonify({"success": False, "message": "File bukan format MP3 valid (magic bytes mismatch)."}), 400
+
+    # Determine save filename
+    if custom_name:
+        fname = os.path.basename(custom_name)
+        if not fname.lower().endswith('.mp3'):
+            fname += '.mp3'
+    else:
+        fname = os.path.basename(file.filename or 'audio.mp3')
+        if not fname.lower().endswith('.mp3'):
+            fname += '.mp3'
+
+    fname = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', fname)
+    if not re.match(r'^[a-zA-Z0-9_\-]+\.mp3$', fname, re.IGNORECASE):
+        return jsonify({"success": False, "message": "Nama file tidak valid."}), 400
+
+    target_dir = SOUND_DIR / category
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_path = target_dir / fname
+
+    file.save(str(target_path))
+
+    cfg = load_sound_config()
+    if 'categories' not in cfg:
+        cfg['categories'] = {}
+    if category not in cfg['categories']:
+        cfg['categories'][category] = []
+
+    rel_p = f"{category}/{fname}"
+    if rel_p not in cfg['categories'][category]:
+        cfg['categories'][category].append(rel_p)
+
+    save_sound_config_atomic(cfg)
+    get_sound_manifest()
+    socketio.emit('sound_config_updated', {}, to=None)
+
+    return jsonify({"success": True, "message": f"Audio {fname} berhasil diunggah ke kategori {category}."})
+
+@app.route('/api/sounding/sync', methods=['POST'])
+def sounding_api_sync():
+    if not DEV_MODE:
+        abort(404)
+
+    cfg = load_sound_config()
+    if 'categories' not in cfg:
+        cfg['categories'] = {}
+
+    if SOUND_DIR.exists():
+        for root, _, files in os.walk(str(SOUND_DIR)):
+            rel_dir = os.path.relpath(root, str(SOUND_DIR)).replace('\\', '/')
+            if rel_dir.startswith('.trash') or rel_dir.startswith('.'):
+                continue
+            cat_name = rel_dir if rel_dir != '.' else 'Random'
+            if cat_name not in cfg['categories']:
+                cfg['categories'][cat_name] = []
+
+            for f in sorted(files):
+                if f.startswith('.') or not f.lower().endswith('.mp3'):
+                    continue
+                rel_p = f"{cat_name}/{f}"
+                if rel_p not in cfg['categories'][cat_name]:
+                    cfg['categories'][cat_name].append(rel_p)
+
+    save_sound_config_atomic(cfg)
+    get_sound_manifest()
+    socketio.emit('sound_config_updated', {}, to=None)
+    return jsonify({"success": True, "message": "Config berhasil disinkronisasi dengan folder Sound/."})
 
 @app.route('/stats')
 def stats_page():
@@ -1001,10 +1205,11 @@ def handle_undo_stroke(data):
 def handle_send_message(data):
     sid = request.sid
     room_code = normalize_room_code(data.get('room_code'))
+    msg_type = data.get('type', 'chat')
     text = data.get('text', '').strip()
     room = room_mgr.get_room(room_code)
 
-    if not room or not text:
+    if not room:
         return
 
     player = room['players'].get(sid)
@@ -1020,6 +1225,30 @@ def handle_send_message(data):
         return
     user_msgs.append(now)
     chat_timestamps[sid] = user_msgs
+
+    # Handle sticker message type
+    if msg_type == 'sticker':
+        sticker_path = data.get('sticker_path', '')
+        filename = os.path.basename(sticker_path)
+        if not re.match(r'^[a-zA-Z0-9_\-]+\.png$', filename):
+            return
+        full_path = (STICKER_DIR / filename).resolve()
+        try:
+            if not str(full_path).startswith(str(STICKER_DIR.resolve())) or not full_path.exists():
+                return
+        except Exception:
+            return
+
+        socketio.emit('chat_message', {
+            'sender': player['name'],
+            'text': '',
+            'type': 'sticker',
+            'sticker_path': filename
+        }, to=room_code)
+        return
+
+    if not text:
+        return
 
     # Profanity moderation check
     has_profanity, matched = contains_profanity(text)
@@ -1117,6 +1346,45 @@ def handle_send_message(data):
             'text': text,
             'type': 'chat'
         }, to=room_code)
+
+# [v2.5.0] Voice & Video Call WebRTC Signaling Handlers
+@socketio.on('voice_join')
+@socketio.on('video_join')
+def handle_av_join(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    room = room_mgr.get_room(room_code)
+    if not room:
+        return
+    if 'voice_peers' not in room or not isinstance(room['voice_peers'], set):
+        room['voice_peers'] = set()
+
+    existing_peers = [p for p in room['voice_peers'] if p != sid]
+    emit('voice_peers_list', {'peers': existing_peers}, to=sid)
+
+    room['voice_peers'].add(sid)
+    player = room['players'].get(sid, {})
+    emit('voice_user_joined', {'sid': sid, 'sender_name': player.get('name', 'Peserta')}, to=room_code, include_self=False)
+
+@socketio.on('voice_leave')
+@socketio.on('video_leave')
+def handle_av_leave(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    room = room_mgr.get_room(room_code)
+    if room and 'voice_peers' in room and isinstance(room['voice_peers'], set):
+        room['voice_peers'].discard(sid)
+    emit('voice_user_left', {'sid': sid}, to=room_code, include_self=False)
+
+@socketio.on('voice_signal')
+@socketio.on('video_signal')
+def handle_av_signal(data):
+    target_sid = data.get('to')
+    if target_sid:
+        emit('voice_signal', {
+            'from': request.sid,
+            'signal': data.get('signal')
+        }, to=target_sid)
 
 @socketio.on('trigger_reaction')
 def handle_trigger_reaction(data):
@@ -1254,8 +1522,20 @@ def handle_disconnect():
                 broadcast_room_update(room_code)
                 room_mgr.save_cache()
 
+def trash_cleanup_loop():
+    while True:
+        try:
+            cleanup_trash(max_age_days=7)
+        except Exception as e:
+            print(f"[TrashCleanup] Error in periodic cleanup: {e}")
+        time.sleep(86400)
+
+trash_cleanup_thread = threading.Thread(target=trash_cleanup_loop, daemon=True)
+trash_cleanup_thread.start()
+
 if __name__ == '__main__':
     init_cache()
+    cleanup_trash(max_age_days=7)
     stale_index = persistent_load("rooms_index")
     if stale_index:
         persistent_save("rooms_index", {})

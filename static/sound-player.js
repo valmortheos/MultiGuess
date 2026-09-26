@@ -323,6 +323,12 @@ const SoundPlayer = (function() {
         await playByPath(targetPath, category);
     }
 
+    async function reloadSoundConfig() {
+        bufferCache.clear();
+        console.log('[SoundPlayer] Reloading sound config and cleared bufferCache.');
+        return await loadSoundConfig();
+    }
+
     return {
         init: init,
         play: play,
@@ -330,6 +336,7 @@ const SoundPlayer = (function() {
         playFallbackTone: playFallbackTone,
         getUserRandomSounds: getUserRandomSounds,
         setSoundEnabled: setSoundEnabled,
-        getSoundEnabled: getSoundEnabled
+        getSoundEnabled: getSoundEnabled,
+        reloadSoundConfig: reloadSoundConfig
     };
 })();

@@ -9,7 +9,7 @@ class TestV223Features(unittest.TestCase):
         self.rm = RoomManager()
 
     def test_version_config(self):
-        self.assertEqual(APP_VERSION, "2.4.1")
+        self.assertEqual(APP_VERSION, "2.5.2")
         self.assertEqual(DISCONNECT_GRACE_SECONDS, 300)
         self.assertEqual(MAX_PLAYERS, 8)
 
