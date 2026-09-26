@@ -10,7 +10,8 @@
 // [v2.2.3-OLD] const APP_VERSION = "2.2.3";
 // [v2.3.0-OLD] const APP_VERSION = "2.3.0";
 // [v2.4.1-OLD] const APP_VERSION = "2.4.1";
-const APP_VERSION = "2.5.0";
+// [v2.5.0-OLD] const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.5.1";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -116,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const toastHampirBenar = document.getElementById('toast-hampir-benar');
 
     const floatingOverlayContainer = document.getElementById('floating-overlay-container');
-    const reactionBtns = document.querySelectorAll('#reaction-bar .btn-reaction');
+    const reactionBtns = document.querySelectorAll('#reaction-bar .btn-reaction[data-slot]');
 
     // Dev Panel Elements (v2.0.3)
     const btnDevPanel = document.getElementById('btn-dev-panel');

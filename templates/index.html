@@ -18,8 +18,9 @@
     <!-- [v2.2.3-OLD] <title>MultiGuess v2.2.3 - Game Draw & Guess</title> -->
     <!-- [v2.3.0-OLD] <title>MultiGuess v2.3.0 - Game Draw & Guess</title> -->
     <!-- [v2.4.1-OLD] <title>MultiGuess v2.4.1 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.5.0 - Game Draw & Guess</title>
-    <link rel="stylesheet" href="/static/style.css?v=250">
+    <!-- [v2.5.0-OLD] <title>MultiGuess v2.5.0 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.5.1 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css?v=251">
     <!-- Socket.IO Local Library -->
     <script src="/static/socket.io.min.js"></script>
 </head>
@@ -192,15 +193,18 @@
                     <button type="button" class="btn-reaction" data-slot="1" title="Reaction 1">1</button>
                     <button type="button" class="btn-reaction" data-slot="2" title="Reaction 2">2</button>
                     <button type="button" class="btn-reaction" data-slot="3" title="Reaction 3">3</button>
-                    <button type="button" id="btn-voice-toggle" class="btn-reaction" title="Voice Chat">🎤</button>
-                    <button type="button" id="btn-video-toggle" class="btn-reaction" title="Video Call">📹</button>
+                    <button type="button" id="btn-voice-toggle" class="btn-action-av" title="Voice Chat">🎤</button>
+                    <button type="button" id="btn-video-toggle" class="btn-action-av" title="Video Call">📹</button>
                 </div>
 
-                <!-- Video Call Grid Modal Container -->
-                <div id="video-grid-modal" class="video-grid-modal hidden">
-                    <div class="video-grid-header">
-                        <span>📹 Video Call</span>
-                        <button type="button" id="btn-close-video-grid" class="btn-icon-danger" title="Tutup Video">✕</button>
+                <!-- Draggable Floating Video Call Overlay (v2.5.1) -->
+                <div id="video-floating-overlay" class="video-floating-overlay hidden">
+                    <div id="video-overlay-header" class="video-overlay-header">
+                        <span class="video-overlay-title">📹 Video Call</span>
+                        <div class="video-overlay-actions">
+                            <button type="button" id="btn-minimize-video-overlay" class="btn-overlay-icon" title="Minimize/Expand">_</button>
+                            <button type="button" id="btn-close-video-overlay" class="btn-overlay-icon btn-overlay-close" title="Tutup Video">✕</button>
+                        </div>
                     </div>
                     <div id="video-grid" class="video-grid"></div>
                 </div>
@@ -319,10 +323,11 @@
             <!-- [v2.2.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.2.3</div> -->
             <!-- [v2.3.0-OLD] <div class="footer-version">MultiGuess v2.3.0</div> -->
             <!-- [v2.4.1-OLD] <div class="footer-version">MultiGuess v2.4.1</div> -->
-            <div class="footer-version">MultiGuess v2.5.0</div>
+            <!-- [v2.5.0-OLD] <div class="footer-version">MultiGuess v2.5.0</div> -->
+            <div class="footer-version">MultiGuess v2.5.1</div>
             <!-- [v2.3.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div> -->
-            <!-- [v2.4.1-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.4.1</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.0</div>
+            <!-- [v2.5.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.0</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.1</div>
         </div>
     </div>
 
@@ -445,11 +450,11 @@
         </div>
     </div>
 
-    <script src="/static/storage.js?v=250"></script>
-    <script src="/static/sound-loader.js?v=250"></script>
-    <script src="/static/sound-player.js?v=250"></script>
-    <script src="/static/canvas.js?v=250"></script>
-    <script src="/static/voice.js?v=250"></script>
-    <script src="/static/app.js?v=250"></script>
+    <script src="/static/storage.js?v=251"></script>
+    <script src="/static/sound-loader.js?v=251"></script>
+    <script src="/static/sound-player.js?v=251"></script>
+    <script src="/static/canvas.js?v=251"></script>
+    <script src="/static/voice.js?v=251"></script>
+    <script src="/static/app.js?v=251"></script>
 </body>
 </html>

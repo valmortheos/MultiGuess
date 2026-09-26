@@ -20,6 +20,30 @@
         }
     }
 
+    function createAudioPeerElement(sid, stream) {
+        let audioEl = document.getElementById(`audio-peer-${sid}`);
+        if (!audioEl) {
+            audioEl = document.createElement('audio');
+            audioEl.id = `audio-peer-${sid}`;
+            audioEl.autoplay = true;
+            audioEl.playsInline = true;
+            audioEl.style.display = 'none';
+            document.body.appendChild(audioEl);
+        }
+        if (audioEl.srcObject !== stream) {
+            audioEl.srcObject = stream;
+            audioEl.play().catch(e => console.warn(`[Voice] Audio play error for peer ${sid}:`, e));
+        }
+        return audioEl;
+    }
+
+    function removeAudioPeerElement(sid) {
+        const audioEl = document.getElementById(`audio-peer-${sid}`);
+        if (audioEl && audioEl.parentNode) {
+            audioEl.parentNode.removeChild(audioEl);
+        }
+    }
+
     async function getAudioTrack() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -147,7 +171,7 @@
     }
 
     async function toggleVideo() {
-        const modal = document.getElementById('video-grid-modal');
+        const overlay = document.getElementById('video-floating-overlay');
 
         if (!state.localStream) {
             state.localStream = new MediaStream();
@@ -180,7 +204,7 @@
             }
 
             state.inVideo = true;
-            if (modal) modal.classList.remove('hidden');
+            if (overlay) overlay.classList.remove('hidden');
             renderLocalVideo();
 
             // Attach video track to all existing peers
@@ -211,13 +235,13 @@
                 window.AppSocket.emit('video_join', { room_code: window.currentRoomCode });
             }
         } else {
-            // Close video (disable video track, hide grid modal, return to voice-only)
+            // Close video (disable video track, hide grid overlay, return to voice-only)
             if (videoTrack) {
                 videoTrack.enabled = false;
             }
             state.camOn = false;
             state.inVideo = false;
-            if (modal) modal.classList.add('hidden');
+            if (overlay) overlay.classList.add('hidden');
             updateControlUI();
         }
     }
@@ -325,7 +349,13 @@
         };
 
         pc.ontrack = event => {
+            console.log('[Voice] remote track from', sid, event.track ? event.track.kind : '');
             const remoteStream = event.streams[0] || new MediaStream([event.track]);
+
+            // Dedicated audio element so voice is audible regardless of video grid visibility
+            createAudioPeerElement(sid, remoteStream);
+
+            // Also update video element if video grid is active
             addOrUpdateRemoteVideo(sid, remoteStream, name || (state.peers[sid] ? state.peers[sid].name : 'Peserta'));
         };
 
@@ -402,31 +432,131 @@
                 } catch (e) {}
                 delete state.peers[data.sid];
                 removeRemoteVideo(data.sid);
+                removeAudioPeerElement(data.sid);
             }
         });
     }
 
-    function initUI() {
-        const btnVoice = document.getElementById('btn-voice-toggle');
-        const btnVideo = document.getElementById('btn-video-toggle');
-        const btnCloseVideo = document.getElementById('btn-close-video-grid');
+    function initOverlayDrag() {
+        const overlay = document.getElementById('video-floating-overlay');
+        const header = document.getElementById('video-overlay-header');
+        if (!overlay || !header) return;
 
-        if (btnVoice) {
-            btnVoice.addEventListener('click', toggleVoice);
+        // Restore saved position
+        try {
+            const saved = localStorage.getItem('mg_video_overlay_pos');
+            if (saved) {
+                const pos = JSON.parse(saved);
+                if (pos.left !== undefined && pos.top !== undefined) {
+                    overlay.style.left = `${pos.left}px`;
+                    overlay.style.top = `${pos.top}px`;
+                    overlay.style.right = 'auto';
+                    overlay.style.bottom = 'auto';
+                }
+            }
+        } catch (e) {}
+
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let initialLeft = 0, initialTop = 0;
+
+        header.addEventListener('pointerdown', function(e) {
+            if (e.target.closest('.video-overlay-actions')) return;
+            isDragging = true;
+            try {
+                header.setPointerCapture(e.pointerId);
+            } catch (err) {}
+
+            const rect = overlay.getBoundingClientRect();
+            startX = e.clientX;
+            startY = e.clientY;
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
+            overlay.style.left = `${initialLeft}px`;
+            overlay.style.top = `${initialTop}px`;
+            overlay.style.right = 'auto';
+            overlay.style.bottom = 'auto';
+        });
+
+        header.addEventListener('pointermove', function(e) {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            let newLeft = initialLeft + dx;
+            let newTop = initialTop + dy;
+
+            const maxLeft = window.innerWidth - overlay.offsetWidth;
+            const maxTop = window.innerHeight - overlay.offsetHeight;
+            newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+
+            overlay.style.left = `${newLeft}px`;
+            overlay.style.top = `${newTop}px`;
+        });
+
+        const stopDrag = function(e) {
+            if (isDragging) {
+                isDragging = false;
+                try {
+                    const rect = overlay.getBoundingClientRect();
+                    localStorage.setItem('mg_video_overlay_pos', JSON.stringify({
+                        left: rect.left,
+                        top: rect.top
+                    }));
+                } catch (err) {}
+            }
+        };
+
+        header.addEventListener('pointerup', stopDrag);
+        header.addEventListener('pointercancel', stopDrag);
+
+        const btnMin = document.getElementById('btn-minimize-video-overlay');
+        if (btnMin) {
+            btnMin.addEventListener('click', function(e) {
+                e.stopPropagation();
+                overlay.classList.toggle('minimized');
+                btnMin.textContent = overlay.classList.contains('minimized') ? '□' : '_';
+            });
         }
 
-        if (btnVideo) {
-            btnVideo.addEventListener('click', toggleVideo);
-        }
-
-        if (btnCloseVideo) {
-            btnCloseVideo.addEventListener('click', function() {
+        const btnClose = document.getElementById('btn-close-video-overlay');
+        if (btnClose) {
+            btnClose.addEventListener('click', function(e) {
+                e.stopPropagation();
                 if (state.inVideo) {
                     toggleVideo();
                 }
             });
         }
+    }
 
+    function initUI() {
+        const btnVoice = document.getElementById('btn-voice-toggle');
+        const btnVideo = document.getElementById('btn-video-toggle');
+
+        if (btnVoice) {
+            btnVoice.addEventListener('click', function(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                toggleVoice();
+            });
+        }
+
+        if (btnVideo) {
+            btnVideo.addEventListener('click', function(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                toggleVideo();
+            });
+        }
+
+        initOverlayDrag();
         updateControlUI();
     }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Sounding - MultiGuess</title>
-    <link rel="stylesheet" href="/static/style.css?v=250">
+    <link rel="stylesheet" href="/static/style.css?v=251">
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; background: #f3f4f6; margin: 0; padding: 20px; color: #1f2937; }
         .sounding-container { max-width: 960px; margin: 0 auto; }
@@ -16,9 +16,10 @@
         .form-group { display: flex; flex-direction: column; gap: 4px; }
         .form-group label { font-size: 13px; font-weight: 600; color: #374151; }
         .form-control { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { border: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-size: 14px; }
-        th { background: #f9fafb; font-weight: 600; }
+        .table-container { max-height: 60vh; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 12px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-size: 14px; }
+        th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #e5e7eb; }
         tr:nth-child(even) { background: #f9fafb; }
         .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
         .badge-ok { background: #dcfce7; color: #166534; }
@@ -31,6 +32,7 @@
         .btn-upload { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
         .btn-upload:hover { background: #16a34a; }
         audio { height: 32px; width: 160px; }
+        .search-filter-bar { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -79,30 +81,40 @@
 
         <div class="card">
             <h2>Daftar Audio Existing</h2>
+            <div class="search-filter-bar">
+                <input type="text" id="sounding-search" class="form-control" placeholder="🔍 Cari nama file atau kategori..." style="flex: 2; min-width: 200px;">
+                <select id="sounding-filter-cat" class="form-control" style="flex: 1; min-width: 150px;">
+                    <option value="">Semua Kategori</option>
+                </select>
+            </div>
             <div id="status-msg" style="margin-bottom: 10px; font-weight: 600;"></div>
-            <table id="audio-table">
-                <thead>
-                    <tr>
-                        <th>Kategori</th>
-                        <th>Nama File</th>
-                        <th>Ukuran</th>
-                        <th>Pratinjau</th>
-                        <th>Status</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="audio-list-body">
-                    <tr><td colspan="6" style="text-align: center;">Memuat daftar audio...</td></tr>
-                </tbody>
-            </table>
+            <div class="table-container">
+                <table id="audio-table">
+                    <thead>
+                        <tr>
+                            <th>Kategori</th>
+                            <th>Nama File</th>
+                            <th>Ukuran</th>
+                            <th>Pratinjau</th>
+                            <th>Status</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audio-list-body">
+                        <tr><td colspan="6" style="text-align: center;">Memuat daftar audio...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
+        let allAudioItems = [];
+
         async function fetchAudioList() {
-            const statusMsg = document.getElementById('status-msg');
             const tbody = document.getElementById('audio-list-body');
             const catSelect = document.getElementById('upload-category');
+            const filterCat = document.getElementById('sounding-filter-cat');
 
             try {
                 const res = await fetch('/api/sounding/list');
@@ -111,80 +123,122 @@
                     return;
                 }
                 const data = await res.json();
-                tbody.innerHTML = '';
+                allAudioItems = [];
+
                 catSelect.innerHTML = '';
+                filterCat.innerHTML = '<option value="">Semua Kategori</option>';
 
                 const categories = data.categories || {};
                 const orphans = data.orphans || [];
 
                 const catNames = Object.keys(categories);
                 catNames.forEach(cat => {
-                    const opt = document.createElement('option');
-                    opt.value = cat;
-                    opt.textContent = cat;
-                    catSelect.appendChild(opt);
+                    const opt1 = document.createElement('option');
+                    opt1.value = cat;
+                    opt1.textContent = cat;
+                    catSelect.appendChild(opt1);
+
+                    const opt2 = document.createElement('option');
+                    opt2.value = cat;
+                    opt2.textContent = cat;
+                    filterCat.appendChild(opt2);
                 });
 
-                let totalCount = 0;
-
-                // Render configured files
                 for (const cat in categories) {
                     const files = categories[cat];
                     files.forEach(item => {
-                        totalCount++;
-                        const tr = document.createElement('tr');
-
-                        const formattedSize = item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-';
-                        const badgeClass = item.status === 'ok' ? 'badge-ok' : 'badge-missing';
-                        const badgeText = item.status === 'ok' ? 'OK' : 'File Hilang';
-
-                        const audioPath = `/Sound/${cat}/${item.filename}`;
-
-                        tr.innerHTML = `
-                            <td><strong>${cat}</strong></td>
-                            <td>${item.filename}</td>
-                            <td>${formattedSize}</td>
-                            <td>
-                                ${item.status === 'ok' ? `<audio src="${audioPath}" controls preload="none"></audio>` : '-'}
-                            </td>
-                            <td><span class="badge ${badgeClass}">${badgeText}</span></td>
-                            <td>
-                                <button class="btn-delete" onclick="deleteAudio('${cat}', '${item.filename}')">🗑️ Hapus</button>
-                            </td>
-                        `;
-                        tbody.appendChild(tr);
+                        allAudioItems.push({
+                            category: cat,
+                            filename: item.filename,
+                            size: item.size,
+                            status: item.status,
+                            isOrphan: false,
+                            path: `/Sound/${cat}/${item.filename}`
+                        });
                     });
                 }
 
-                // Render orphans
                 orphans.forEach(item => {
-                    totalCount++;
-                    const tr = document.createElement('tr');
-                    const formattedSize = (item.size / 1024).toFixed(1) + ' KB';
                     const parts = item.path.split('/');
                     const cat = parts.length > 1 ? parts[0] : 'Root';
                     const fname = parts.length > 1 ? parts[1] : parts[0];
-
-                    tr.innerHTML = `
-                        <td><strong>${cat}</strong></td>
-                        <td>${fname}</td>
-                        <td>${formattedSize}</td>
-                        <td><audio src="/Sound/${item.path}" controls preload="none"></audio></td>
-                        <td><span class="badge badge-orphan">Orphan (Tidak di Config)</span></td>
-                        <td>
-                            <button class="btn-delete" onclick="deleteAudio('${cat}', '${fname}')">🗑️ Hapus</button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
+                    allAudioItems.push({
+                        category: cat,
+                        filename: fname,
+                        size: item.size,
+                        status: 'orphan',
+                        isOrphan: true,
+                        path: `/Sound/${item.path}`
+                    });
                 });
 
-                if (totalCount === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tidak ada file audio.</td></tr>';
+                // Init search input from URL parameter ?q=...
+                const urlParams = new URLSearchParams(window.location.search);
+                const queryParam = urlParams.get('q');
+                if (queryParam) {
+                    document.getElementById('sounding-search').value = queryParam;
                 }
+
+                renderFilteredTable();
 
             } catch (err) {
                 console.error('[Sounding] Error fetching list:', err);
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Terjadi kesalahan saat memuat data.</td></tr>';
+            }
+        }
+
+        function renderFilteredTable() {
+            const tbody = document.getElementById('audio-list-body');
+            const searchVal = document.getElementById('sounding-search').value.trim().toLowerCase();
+            const selectedCat = document.getElementById('sounding-filter-cat').value;
+
+            // Sync URL query string
+            if (searchVal) {
+                window.history.replaceState(null, '', `?q=${encodeURIComponent(searchVal)}`);
+            } else {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+
+            tbody.innerHTML = '';
+            let displayedCount = 0;
+
+            allAudioItems.forEach(item => {
+                const matchQuery = !searchVal || item.filename.toLowerCase().includes(searchVal) || item.category.toLowerCase().includes(searchVal);
+                const matchCat = !selectedCat || item.category === selectedCat;
+
+                if (matchQuery && matchCat) {
+                    displayedCount++;
+                    const tr = document.createElement('tr');
+                    const formattedSize = item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-';
+
+                    let badgeClass = 'badge-ok';
+                    let badgeText = 'OK';
+                    if (item.status === 'missing') {
+                        badgeClass = 'badge-missing';
+                        badgeText = 'File Hilang';
+                    } else if (item.status === 'orphan' || item.isOrphan) {
+                        badgeClass = 'badge-orphan';
+                        badgeText = 'Orphan';
+                    }
+
+                    tr.innerHTML = `
+                        <td><strong>${item.category}</strong></td>
+                        <td>${item.filename}</td>
+                        <td>${formattedSize}</td>
+                        <td>
+                            ${item.status === 'ok' || item.isOrphan ? `<audio src="${item.path}" controls preload="none"></audio>` : '-'}
+                        </td>
+                        <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+                        <td>
+                            <button class="btn-delete" onclick="deleteAudio('${item.category}', '${item.filename}')">🗑️ Hapus</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            if (displayedCount === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#6b7280;">Tidak ada audio yang cocok dengan pencarian.</td></tr>';
             }
         }
 
@@ -265,6 +319,9 @@
                 alert('Error sync: ' + err.message);
             }
         });
+
+        document.getElementById('sounding-search').addEventListener('input', renderFilteredTable);
+        document.getElementById('sounding-filter-cat').addEventListener('change', renderFilteredTable);
 
         document.addEventListener('DOMContentLoaded', fetchAudioList);
     </script>
