@@ -4,9 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Sounding - MultiGuess</title>
-    <link rel="stylesheet" href="/static/style.css?v=251">
+    <link rel="stylesheet" href="/static/style.css?v=252">
     <style>
-        body { font-family: system-ui, -apple-system, sans-serif; background: #f3f4f6; margin: 0; padding: 20px; color: #1f2937; }
+        body.sounding-page {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f3f4f6;
+            margin: 0;
+            padding: 20px;
+            color: #1f2937;
+            overflow: auto !important;
+            height: auto !important;
+            min-height: 100dvh;
+            overscroll-behavior: auto !important;
+        }
         .sounding-container { max-width: 960px; margin: 0 auto; }
         .card { background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .dev-warning-banner { background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 12px 16px; border-radius: 8px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
@@ -16,7 +26,14 @@
         .form-group { display: flex; flex-direction: column; gap: 4px; }
         .form-group label { font-size: 13px; font-weight: 600; color: #374151; }
         .form-control { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
-        .table-container { max-height: 60vh; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 12px; }
+        .table-container {
+            max-height: 60vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-top: 12px;
+        }
         table { width: 100%; border-collapse: collapse; }
         th, td { border-bottom: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-size: 14px; }
         th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #e5e7eb; }
@@ -35,7 +52,7 @@
         .search-filter-bar { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
     </style>
 </head>
-<body>
+<body class="sounding-page">
     <div class="sounding-container">
         <div class="dev-warning-banner">
             ⚠️ Warning: Halaman Admin Sounding hanya aktif dalam Mode Pengembangan (DEV_MODE).

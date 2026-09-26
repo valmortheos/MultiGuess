@@ -12,7 +12,7 @@ import os
 # [v2.3.0-OLD] APP_VERSION = "2.3.0"
 # [v2.4.1-OLD] APP_VERSION = "2.4.1"
 # [v2.5.0-OLD] APP_VERSION = "2.5.0"
-APP_VERSION = "2.5.1"
+APP_VERSION = "2.5.2"
 DEV_MODE = os.getenv("MG_DEV_MODE", "1").lower() in ("1", "true", "yes")
 CACHE_DIR_NAME = "cache"
 

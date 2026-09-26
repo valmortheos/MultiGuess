@@ -8,7 +8,7 @@ class TestV251Bugs(unittest.TestCase):
         app.config['TESTING'] = True
 
     def test_version_251(self):
-        self.assertEqual(APP_VERSION, "2.5.1")
+        self.assertEqual(APP_VERSION, "2.5.2")
 
     def test_templates_button_classes(self):
         with open('templates/index.html', 'r', encoding='utf-8') as f:

@@ -27,8 +27,11 @@
             audioEl.id = `audio-peer-${sid}`;
             audioEl.autoplay = true;
             audioEl.playsInline = true;
+            audioEl.muted = false;
             audioEl.style.display = 'none';
             document.body.appendChild(audioEl);
+        } else {
+            audioEl.muted = false;
         }
         if (audioEl.srcObject !== stream) {
             audioEl.srcObject = stream;
@@ -394,7 +397,7 @@
 
         window.AppSocket.on('voice_user_joined', function(data) {
             if (data && data.sid) {
-                createPeer(data.sid, true, data.sender_name);
+                createPeer(data.sid, false, data.sender_name);
             }
         });
 

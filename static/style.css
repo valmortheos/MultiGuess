@@ -563,12 +563,13 @@ input[type="text"]:focus {
 
 /* Chat & Guess Container */
 .chat-container {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     overflow: visible;
     padding: 8px 12px;
     position: relative;
+    min-height: 0;
 }
 
 /* [v2.0.2-OLD]

@@ -1,0 +1,57 @@
+Werkzeug appears to be used in a production deployment. Consider switching to a production web server instead.
+============================================
+  MultiGuess server v2.5.2 (dev_mode=True)
+  Local:   http://127.0.0.1:5000
+  Network: http://192.168.0.2:5000
+  Share this URL with players on the same WiFi
+  Cache dir: /app/cache (temporal: 0 files, persistent: 3 files)
+============================================
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.2:5000
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [26/Sep/2026 02:45:31] "GET /socket.io/?transport=polling&EIO=4&t=1790390731.7388272 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:45:31] "GET /socket.io/?transport=polling&EIO=4&t=1790390731.7942734 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:45:38] code 400, message Bad request version ('ÿ')
+127.0.0.1 - - [26/Sep/2026 02:45:38] "[31m[1mNone /socket.io/?transport=websocket&EIO=4&sid=zuObOvfe-xu6tCSAAAAA&t=1790390731.7463484 HTTP/0.9[0m" 400 -
+127.0.0.1 - - [26/Sep/2026 02:45:38] code 400, message Bad request syntax ('\x88\x82\x93â;\x9c\x90')
+127.0.0.1 - - [26/Sep/2026 02:45:38] "[31m[1mNone /socket.io/?transport=websocket&EIO=4&sid=FE2O18QV1V7NC6p8AAAC&t=1790390731.801419 HTTP/0.9[0m" 400 -
+127.0.0.1 - - [26/Sep/2026 02:46:04] "GET /sounding HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:04] "GET /static/style.css?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:04] "GET /api/sounding/list HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /?nosound=1 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/style.css?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/sound-loader.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/storage.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/sound-player.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/canvas.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/voice.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/socket.io.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/app.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /socket.io/?EIO=4&transport=polling&t=Q3Rcmk2 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "POST /socket.io/?EIO=4&transport=polling&t=Q3Rcmkl&sid=LytXkH1AQ_j8p8CuAAAE HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /socket.io/?EIO=4&transport=polling&t=Q3Rcmkq&sid=LytXkH1AQ_j8p8CuAAAE HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /socket.io/?EIO=4&transport=polling&t=Q3RcmlH&sid=LytXkH1AQ_j8p8CuAAAE HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /api/sound-config HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /api/stickers HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /Stickers/smile.png HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /?nosound=1 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/sound-loader.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/storage.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/socket.io.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/style.css?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/canvas.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /static/voice.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:06] "GET /static/sound-player.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /static/app.js?v=252 HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /socket.io/?EIO=4&transport=polling&t=Q3Rcmsq HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "POST /socket.io/?EIO=4&transport=polling&t=Q3RcmtI&sid=Lk8MXypNmFU_PUm2AAAG HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /socket.io/?EIO=4&transport=polling&t=Q3RcmtM&sid=Lk8MXypNmFU_PUm2AAAG HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /socket.io/?EIO=4&transport=polling&t=Q3Rcmte&sid=Lk8MXypNmFU_PUm2AAAG HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /api/sound-config HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /api/stickers HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:07] "GET /Stickers/smile.png HTTP/1.1" 200 -
+127.0.0.1 - - [26/Sep/2026 02:46:13] "GET /api/stickers HTTP/1.1" 200 -
