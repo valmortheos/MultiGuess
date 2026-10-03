@@ -79,9 +79,9 @@ const SoundLoader = (function() {
         let lastTimestamp = performance.now();
         let lastBytes = 0;
 
-        for (const fileInfo of manifest.files) {
-            if (isSkipped) break;
-
+        // [v2.5.3] Parallel chunk download pool with max 4 concurrency
+        async function downloadSingleFile(fileInfo) {
+            if (isSkipped) return;
             const fileUrl = `/Sound/${fileInfo.path}`;
             try {
                 const res = await fetchWithRetry(fileUrl, 3);
@@ -108,7 +108,7 @@ const SoundLoader = (function() {
                             const mbDownloaded = (downloadedBytes / (1024 * 1024)).toFixed(1);
                             const mbTotal = (totalBytes / (1024 * 1024)).toFixed(1);
                             const speedMB = (avgSpeed / (1024 * 1024)).toFixed(1);
-                            const remainingBytes = totalBytes - downloadedBytes;
+                            const remainingBytes = Math.max(0, totalBytes - downloadedBytes);
                             const etaSec = avgSpeed > 0 ? Math.max(0, Math.ceil(remainingBytes / avgSpeed)) : 0;
 
                             const percent = Math.min(100, Math.floor((downloadedBytes / totalBytes) * 100));
@@ -122,7 +122,7 @@ const SoundLoader = (function() {
                     }
                 }
 
-                if (isSkipped) break;
+                if (isSkipped) return;
 
                 const rawBlob = new Blob(chunks);
                 const normalizedBlob = new Blob([rawBlob], { type: 'audio/mpeg' });
@@ -144,6 +144,20 @@ const SoundLoader = (function() {
                 console.warn(`[SoundLoader] Failed to download audio file ${fileInfo.path}:`, err);
             }
         }
+
+        const concurrencyLimit = 4;
+        const fileQueue = [...manifest.files];
+        async function worker() {
+            while (fileQueue.length > 0 && !isSkipped) {
+                const fileInfo = fileQueue.shift();
+                if (fileInfo) {
+                    await downloadSingleFile(fileInfo);
+                }
+            }
+        }
+
+        const workers = Array.from({ length: Math.min(concurrencyLimit, manifest.files.length) }, () => worker());
+        await Promise.all(workers);
 
         if (!isSkipped) {
             if (failedFiles === 0) {

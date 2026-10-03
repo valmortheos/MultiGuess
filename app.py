@@ -38,6 +38,41 @@ chat_timestamps = {}
 # Thread safety lock for room state mutations & sound emissions
 room_state_lock = threading.Lock()
 
+def _reattach_player(room, old_sid, new_sid, player):
+    """Re-attaches a player to room with new sid upon session restoration/rejoin."""
+    player['sid'] = new_sid
+    player['disconnected'] = False
+    player['disconnected_at'] = None
+    room['players'][new_sid] = player
+
+    if room.get('host_sid') == old_sid:
+        room['host_sid'] = new_sid
+
+    if room.get('current_drawer') == old_sid:
+        room['current_drawer'] = new_sid
+
+    room['drawer_order'] = [new_sid if d_sid == old_sid else d_sid for d_sid in room.get('drawer_order', [])]
+
+    if old_sid in room.get('turn_scores', {}):
+        val = room['turn_scores'].pop(old_sid)
+        room['turn_scores'][new_sid] = val
+
+    if 'voice_peers' in room and isinstance(room['voice_peers'], set):
+        if old_sid in room['voice_peers']:
+            room['voice_peers'].remove(old_sid)
+            room['voice_peers'].add(new_sid)
+
+    if 'reaction_assignments' in room and isinstance(room['reaction_assignments'], dict):
+        if old_sid in room['reaction_assignments']:
+            val = room['reaction_assignments'].pop(old_sid)
+            room['reaction_assignments'][new_sid] = val
+
+    # [v2.5.3] Remap strokeOwner in existing strokes
+    if room.get('strokes'):
+        for stroke in room['strokes']:
+            if isinstance(stroke, dict) and stroke.get('strokeOwner') == old_sid:
+                stroke['strokeOwner'] = new_sid
+
 def broadcast_room_update(room_code):
     data = room_mgr.get_room_data(room_code)
     if data:
@@ -419,7 +454,9 @@ def index():
 
 @app.route('/Sound/<path:filename>')
 def serve_sound(filename):
-    return send_from_directory(SOUND_DIR, filename)
+    response = send_from_directory(SOUND_DIR, filename)
+    response.headers['Cache-Control'] = 'public, max-age=604800'
+    return response
 
 @app.route('/Stickers/<path:filename>')
 def serve_sticker(filename):
@@ -814,33 +851,7 @@ def handle_restore_session(data):
         room = matched_room
         room_code = room['code']
         player = room['players'].pop(matched_old_sid)
-
-        player['sid'] = sid
-        player['disconnected'] = False
-        player['disconnected_at'] = None
-        room['players'][sid] = player
-
-        if room['host_sid'] == matched_old_sid:
-            room['host_sid'] = sid
-
-        if room['current_drawer'] == matched_old_sid:
-            room['current_drawer'] = sid
-
-        room['drawer_order'] = [sid if d_sid == matched_old_sid else d_sid for d_sid in room['drawer_order']]
-
-        if matched_old_sid in room.get('turn_scores', {}):
-            val = room['turn_scores'].pop(matched_old_sid)
-            room['turn_scores'][sid] = val
-
-        if 'voice_peers' in room and isinstance(room['voice_peers'], set):
-            if matched_old_sid in room['voice_peers']:
-                room['voice_peers'].remove(matched_old_sid)
-                room['voice_peers'].add(sid)
-
-        if 'reaction_assignments' in room and isinstance(room['reaction_assignments'], dict):
-            if matched_old_sid in room['reaction_assignments']:
-                val = room['reaction_assignments'].pop(matched_old_sid)
-                room['reaction_assignments'][sid] = val
+        _reattach_player(room, matched_old_sid, sid, player)
 
         join_room(room_code)
 
@@ -949,32 +960,8 @@ def handle_join_room(data):
     if matched_old_sid:
         with room_state_lock:
             player = room['players'].pop(matched_old_sid)
-            player['sid'] = sid
             player['name'] = player_name
-            player['disconnected'] = False
-            player['disconnected_at'] = None
-            room['players'][sid] = player
-
-            if room['host_sid'] == matched_old_sid:
-                room['host_sid'] = sid
-            if room['current_drawer'] == matched_old_sid:
-                room['current_drawer'] = sid
-
-            room['drawer_order'] = [sid if d_sid == matched_old_sid else d_sid for d_sid in room['drawer_order']]
-
-            if matched_old_sid in room.get('turn_scores', {}):
-                val = room['turn_scores'].pop(matched_old_sid)
-                room['turn_scores'][sid] = val
-
-            if 'voice_peers' in room and isinstance(room['voice_peers'], set):
-                if matched_old_sid in room['voice_peers']:
-                    room['voice_peers'].remove(matched_old_sid)
-                    room['voice_peers'].add(sid)
-
-            if 'reaction_assignments' in room and isinstance(room['reaction_assignments'], dict):
-                if matched_old_sid in room['reaction_assignments']:
-                    val = room['reaction_assignments'].pop(matched_old_sid)
-                    room['reaction_assignments'][sid] = val
+            _reattach_player(room, matched_old_sid, sid, player)
 
             join_room(room_code)
 
@@ -1065,6 +1052,33 @@ def handle_cancel_room(data):
         room_mgr.save_cache()
         emit('room_cancelled', {'room_code': room_code})
 
+@socketio.on('rename_player')
+def handle_rename_player(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    new_name = (data.get('new_name') or '').strip()
+    room = room_mgr.get_room(room_code)
+
+    if not room or room['state'] != 'LOBBY' or sid not in room['players']:
+        return
+
+    if not new_name or len(new_name) > 15:
+        emit('error_message', {'message': 'Nama harus 1 - 15 karakter.'})
+        return
+
+    has_profanity, matched = contains_profanity(new_name)
+    if has_profanity:
+        log_moderation('reject_player_rename', new_name, new_name, matched, room_code)
+        emit('error_message', {'message': 'Nama mengandung kata yang tidak diperbolehkan.'})
+        return
+
+    old_name = room['players'][sid]['name']
+    room['players'][sid]['name'] = new_name
+    room_mgr.save_cache()
+
+    socketio.emit('system_message', {'text': f"{old_name} mengubah nama menjadi {new_name}."}, to=room_code)
+    broadcast_room_update(room_code)
+
 @socketio.on('update_settings')
 def handle_update_settings(data):
     sid = request.sid
@@ -1121,6 +1135,22 @@ def handle_start_game(data):
 
     start_next_turn(room_code)
 
+@socketio.on('skip_word_select')
+def handle_skip_word_select(data):
+    sid = request.sid
+    room_code = normalize_room_code(data.get('room_code'))
+    room = room_mgr.get_room(room_code)
+
+    if not room or room['state'] != 'SELECTING_WORD' or room['current_drawer'] != sid:
+        return
+
+    player_name = room['players'].get(sid, {}).get('name', 'Pemain')
+    socketio.emit('system_message', {'text': f"{player_name} melewati giliran."}, to=room_code)
+    socketio.emit('word_select_timer_cancel', {}, to=room_code)
+
+    room['drawer_index'] += 1
+    start_next_turn(room_code)
+
 @socketio.on('reroll_words')
 def handle_reroll_words(data):
     sid = request.sid
@@ -1172,6 +1202,8 @@ def handle_draw_stroke(data):
     room = room_mgr.get_room(room_code)
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
+        if isinstance(stroke, dict):
+            stroke['strokeOwner'] = sid
         room['strokes'].append(stroke)
         if len(room['strokes']) > 500:
             room['strokes'] = room['strokes'][-500:]
@@ -1195,10 +1227,18 @@ def handle_undo_stroke(data):
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
         if room['strokes']:
-            while room['strokes']:
-                pop_s = room['strokes'].pop()
-                if pop_s.get('type') == 'start':
-                    break
+            # Ensure stroke belonging to current drawer session
+            last_stroke = room['strokes'][-1]
+            if isinstance(last_stroke, dict) and last_stroke.get('strokeOwner') and last_stroke.get('strokeOwner') != sid:
+                print(f"[undo_stroke] Warning: Last stroke owner ({last_stroke.get('strokeOwner')}) does not match current drawer ({sid}). Skipping undo.")
+            else:
+                while room['strokes']:
+                    top_stroke = room['strokes'][-1]
+                    if isinstance(top_stroke, dict) and top_stroke.get('strokeOwner') and top_stroke.get('strokeOwner') != sid:
+                        break
+                    pop_s = room['strokes'].pop()
+                    if isinstance(pop_s, dict) and pop_s.get('type') == 'start':
+                        break
         socketio.emit('strokes_rebuild', room['strokes'], to=room_code)
 
 @socketio.on('send_message')
