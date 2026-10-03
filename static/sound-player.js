@@ -337,6 +337,7 @@ const SoundPlayer = (function() {
         getUserRandomSounds: getUserRandomSounds,
         setSoundEnabled: setSoundEnabled,
         getSoundEnabled: getSoundEnabled,
-        reloadSoundConfig: reloadSoundConfig
+        reloadSoundConfig: reloadSoundConfig,
+        getNextFromPool: getNextFromPool
     };
 })();

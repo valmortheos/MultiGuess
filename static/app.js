@@ -1039,7 +1039,27 @@ document.addEventListener('DOMContentLoaded', async function() {
         lobbyPlayerList.innerHTML = '';
         data.players.forEach(p => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>${p.name} ${p.is_host ? '👑 (Host)' : ''} ${p.disconnected ? '⚡ (Terputus)' : ''}</span> <span>${p.score} pts</span>`;
+            const isMe = (p.sid === mySid);
+            const renameBtnHtml = (isMe && data.state === 'LOBBY') ? `<button class="btn btn-secondary btn-xs btn-rename-lobby" style="margin-left: 6px; padding: 2px 6px; font-size: 11px;">✏️ Ubah</button>` : '';
+            li.innerHTML = `<span><span class="player-lobby-name">${p.name}</span> ${p.is_host ? '👑 (Host)' : ''} ${p.disconnected ? '⚡ (Terputus)' : ''}${renameBtnHtml}</span> <span>${p.score} pts</span>`;
+            if (isMe && data.state === 'LOBBY') {
+                const renameBtn = li.querySelector('.btn-rename-lobby');
+                if (renameBtn) {
+                    renameBtn.addEventListener('click', function() {
+                        const newName = prompt('Masukkan nama baru (maks 15 karakter):', p.name);
+                        if (newName !== null) {
+                            const trimmed = newName.trim();
+                            if (trimmed && trimmed !== p.name && trimmed.length <= 15) {
+                                DB.set('settings', 'player_name', trimmed);
+                                window.AppSocket.emit('rename_player', {
+                                    room_code: window.currentRoomCode,
+                                    new_name: trimmed
+                                });
+                            }
+                        }
+                    });
+                }
+            }
             lobbyPlayerList.appendChild(li);
         });
 
@@ -1183,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     const btnRerollWords = document.getElementById('btn-reroll-words');
+    const btnSkipWordSelect = document.getElementById('btn-skip-word-select');
     const rerollCountText = document.getElementById('reroll-count-text');
 
     let wordSelectTimer = null;
@@ -1229,6 +1250,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
+    if (btnSkipWordSelect) {
+        btnSkipWordSelect.addEventListener('click', function() {
+            vibrate(10);
+            if (window.currentRoomCode) {
+                btnSkipWordSelect.disabled = true;
+                window.AppSocket.emit('skip_word_select', { room_code: window.currentRoomCode });
+                modalWordSelect.classList.add('hidden');
+            }
+        });
+    }
+
     window.AppSocket.on('choose_word_prompt', function(data) {
         wordCardsContainer.innerHTML = '';
         data.words.forEach(word => {
@@ -1252,6 +1284,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         if (btnRerollWords) {
             btnRerollWords.disabled = (rerollCount >= 2);
+        }
+        if (btnSkipWordSelect) {
+            btnSkipWordSelect.disabled = false;
         }
 
         modalWordSelect.classList.remove('hidden');
