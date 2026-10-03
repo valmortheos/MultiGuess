@@ -9,7 +9,9 @@
 // [v2.2.2-OLD] const APP_VERSION = "2.2.2";
 // [v2.2.3-OLD] const APP_VERSION = "2.2.3";
 // [v2.3.0-OLD] const APP_VERSION = "2.3.0";
-const APP_VERSION = "2.4.1";
+// [v2.4.1-OLD] const APP_VERSION = "2.4.1";
+// [v2.5.0-OLD] const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.5.2";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -115,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const toastHampirBenar = document.getElementById('toast-hampir-benar');
 
     const floatingOverlayContainer = document.getElementById('floating-overlay-container');
-    const reactionBtns = document.querySelectorAll('#reaction-bar .btn-reaction');
+    const reactionBtns = document.querySelectorAll('#reaction-bar .btn-reaction[data-slot]');
 
     // Dev Panel Elements (v2.0.3)
     const btnDevPanel = document.getElementById('btn-dev-panel');
@@ -576,6 +578,69 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
 
+    // Chat Sticker Picker Handler (v2.5.0)
+    const btnChatSticker = document.getElementById('btn-chat-sticker');
+    const chatStickerPanel = document.getElementById('chat-sticker-panel');
+    const btnCloseChatStickers = document.getElementById('btn-close-chat-stickers');
+    const chatStickerGrid = document.getElementById('chat-sticker-grid');
+
+    if (btnChatSticker) {
+        btnChatSticker.addEventListener('click', function() {
+            vibrate(10);
+            if (!chatStickerPanel) return;
+            const isHidden = chatStickerPanel.classList.contains('hidden');
+            if (isHidden) {
+                chatStickerPanel.classList.remove('hidden');
+                loadChatStickerGrid();
+            } else {
+                chatStickerPanel.classList.add('hidden');
+            }
+        });
+    }
+
+    if (btnCloseChatStickers) {
+        btnCloseChatStickers.addEventListener('click', function() {
+            vibrate(10);
+            if (chatStickerPanel) chatStickerPanel.classList.add('hidden');
+        });
+    }
+
+    async function loadChatStickerGrid() {
+        if (!chatStickerGrid) return;
+        try {
+            const res = await fetch('/api/stickers');
+            const stickers = await res.json();
+            chatStickerGrid.innerHTML = '';
+
+            if (!stickers || stickers.length === 0) {
+                chatStickerGrid.innerHTML = '<div class="no-stickers-msg">Belum ada sticker</div>';
+                return;
+            }
+
+            stickers.forEach(s => {
+                const img = document.createElement('img');
+                img.className = 'chat-sticker-thumb';
+                img.src = s.path;
+                img.alt = s.name;
+                img.addEventListener('click', function() {
+                    vibrate(10);
+                    if (chatStickerPanel) chatStickerPanel.classList.add('hidden');
+                    const fileName = s.path.replace(/^\/Stickers\//, '');
+                    window.AppSocket.emit('send_message', {
+                        room_code: window.currentRoomCode,
+                        text: '',
+                        type: 'sticker',
+                        sticker_path: fileName
+                    });
+                });
+                chatStickerGrid.appendChild(img);
+            });
+        } catch (err) {
+            console.error('[ChatStickers] Error loading chat stickers:', err);
+            if (chatStickerGrid) chatStickerGrid.innerHTML = '<div class="no-stickers-msg">Gagal memuat</div>';
+        }
+    }
+
     function startStickerPlacement(stickerPath) {
         if (!canvasContainer) return;
         CanvasManager.setStickerMode(true);
@@ -847,6 +912,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     btnExitPodium.addEventListener('click', function() {
         vibrate(10);
         resetToHome();
+    });
+
+    if (window.VoiceChat && typeof window.VoiceChat.initSocketListeners === 'function') {
+        window.VoiceChat.initSocketListeners();
+    }
+
+    window.AppSocket.on('sound_config_updated', function() {
+        console.log('[Socket] sound_config_updated received, reloading SoundPlayer config');
+        if (typeof SoundPlayer !== 'undefined' && SoundPlayer.reloadSoundConfig) {
+            SoundPlayer.reloadSoundConfig();
+        }
     });
 
     // Socket.IO Incoming Event Receivers
@@ -1257,7 +1333,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         const div = document.createElement('div');
         div.className = `chat-msg ${data.type}`;
 
-        if (data.type === 'system') {
+        if (data.type === 'sticker') {
+            const cleanPath = (data.sticker_path || '').replace(/^\/Stickers\//, '');
+            div.className = 'chat-msg sticker';
+            div.innerHTML = `<span class="chat-sender">${data.sender}:</span><img src="/Stickers/${cleanPath}" class="chat-sticker" alt="sticker">`;
+        } else if (data.type === 'system') {
             div.textContent = data.text;
         } else if (data.type === 'correct') {
             div.textContent = data.text;

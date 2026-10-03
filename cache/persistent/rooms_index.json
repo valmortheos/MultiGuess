@@ -1,8 +1,16 @@
 {
-  "MYPL": {
-    "created_at": 1789887044,
+  "UXDM": {
+    "created_at": 1790390731,
     "host": "Alice",
-    "player_count": 3,
+    "player_count": 2,
+    "status": "lobby",
+    "round": 1,
+    "current_word": ""
+  },
+  "EIWM": {
+    "created_at": 1790390766,
+    "host": "Alice",
+    "player_count": 2,
     "status": "lobby",
     "round": 1,
     "current_word": ""
