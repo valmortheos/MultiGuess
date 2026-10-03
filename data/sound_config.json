@@ -23,22 +23,16 @@
       "Random/rd_chicken.mp3",
       "Random/rd_dana.mp3",
       "Random/rd_duarm.mp3",
-      "Random/rd_hidupjoko.mp3",
-      "Random/rd_jokowi.mp3",
-      "Random/rd_jokowidiam.mp3",
       "Random/rd_kobojw.mp3",
       "Random/rd_krakatau.mp3",
       "Random/rd_laugh.mp3",
       "Random/rd_meow.mp3",
       "Random/rd_metalclang.mp3",
       "Random/rd_rxking.mp3",
-      "Random/rd_taco.mp3",
-      "Random/rd_wiwok.mp3",
-      "Random/test_upload.mp3"
+      "Random/rd_taco.mp3"
     ],
     "TimeRemaining": [
-      "TimeRemaining/tm_sponge.mp3",
-      "TimeRemaining/tm_upin.mp3"
+      "TimeRemaining/tm_sponge.mp3"
     ],
     "WinnerScore": [
       "WinnerScore/ws_champion.mp3",
@@ -46,7 +40,6 @@
     ],
     "WrongAnswer": [
       "WrongAnswer/wg_fahh.mp3",
-      "WrongAnswer/wg_jokowi.mp3",
       "WrongAnswer/wg_tetot.mp3"
     ],
     "YourTurn": [

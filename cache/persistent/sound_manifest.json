@@ -1,25 +1,40 @@
 {
-  "version": "75cd6578d9138abca18a1c58f4d8d70fd8934a7ae87ef326855f155a16b776d4",
+  "version": "2ba73def4ce99ef82d4af0650a5284c28664c918fb6e1b6a77176d6e61d35d99",
   "files": [
     {
-      "path": "YourTurn/yt_amongus.mp3",
-      "size": 99894,
-      "hash": "2a1a36e036c776bc030bf79ef69e312e6bbe0bc96b9ee0f30956ff4aad30ae4b"
+      "path": "Censored/cn_boom.mp3",
+      "size": 21230,
+      "hash": "c4dadbc0b9cd21b1313ec11845a00d9401bc208ae0f59f54a0282b8cb89d56c2"
     },
     {
-      "path": "WinnerScore/ws_dubistgut.mp3",
-      "size": 117923,
-      "hash": "cac1c41a3a5c4c479e70728d3beb136c151e17c69e69e86286c067a10b841575"
+      "path": "Censored/cn_gunshot.mp3",
+      "size": 21150,
+      "hash": "650d8016700250c65fd02ee4211b6d3fc3c2420b8c8384a430e8ca3aa923af0d"
     },
     {
-      "path": "WrongAnswer/wg_fahh.mp3",
-      "size": 79456,
-      "hash": "f65311d5eea216616cde00edc9e0ee0e2be1f5a03aeeb5aef8b23d55f676826a"
+      "path": "CorrectAnswer/cr_angrybird.mp3",
+      "size": 182617,
+      "hash": "80c8e040f332f034a4e87aa6a058572cc38f74cd80186a6ecbd993ddfa1e13f6"
     },
     {
-      "path": "WrongAnswer/wg_jokowi.mp3",
-      "size": 14358,
-      "hash": "5e0c72ef211e09e0e7db723f001a8028a1db771dd660d2b892c4f7035ec53c17"
+      "path": "CorrectAnswer/cr_wow.mp3",
+      "size": 67637,
+      "hash": "5118c619f0ab62e181f32d9eacd490441b49aaa7bb8e1be1b6b51e7a3c25debc"
+    },
+    {
+      "path": "CorrectAnswer/cr_yooo.mp3",
+      "size": 42080,
+      "hash": "2f355d5f315d88bdc972cb11bf63103ab702b51d008bbb8a24fb22c525ee91dc"
+    },
+    {
+      "path": "CorrectAnswer/cr_zehaha.mp3",
+      "size": 80083,
+      "hash": "570c61ea1a881b930647f9514b1b9247ed542fa325dc83406e7cbc709b957bea"
+    },
+    {
+      "path": "FailedRound/fl_sponge.mp3",
+      "size": 54782,
+      "hash": "7a21ade91762874e2b21be21efa15436bcc49e88ffb98d16cf597618caebfa93"
     },
     {
       "path": "Random/rd_ack.mp3",
@@ -30,6 +45,61 @@
       "path": "Random/rd_ahh.mp3",
       "size": 14138,
       "hash": "059c7e7e8812edf5bb938b0c627327f57ee14e115dcbfac4548a4f769c4d715c"
+    },
+    {
+      "path": "Random/rd_antek.mp3",
+      "size": 51963,
+      "hash": "89ce18b31868d8d2cd4603e8a7690dacd051214a3d4a1f1c600db0fd5336e260"
+    },
+    {
+      "path": "Random/rd_brimo.mp3",
+      "size": 41097,
+      "hash": "88f20b28d46d2d18c1e2e2a61da0436530a3b563db650bf94ddf18e99e14d743"
+    },
+    {
+      "path": "Random/rd_capek.mp3",
+      "size": 15843,
+      "hash": "f0c304971a233c042bee3cb3563e0f6a08ab8fbc9618554f5ad69850e9cc5dd1"
+    },
+    {
+      "path": "Random/rd_chicken.mp3",
+      "size": 91821,
+      "hash": "419e073ebfbd286a614d8e70611a63d8120ed56a3ccad9fcd8430fc03d9289b8"
+    },
+    {
+      "path": "Random/rd_dana.mp3",
+      "size": 32644,
+      "hash": "2fc4c9335d5a32664bdb846a01dbab0363e8e8f45ddee27e91917ea5381644de"
+    },
+    {
+      "path": "Random/rd_duarm.mp3",
+      "size": 23751,
+      "hash": "1b64ac481a7019362b26db8bf2d1b3d4324bf6951beec04b18834efed27a2f6b"
+    },
+    {
+      "path": "Random/rd_hidupjoko.mp3",
+      "size": 29130,
+      "hash": "9246605a33044700ae732294a7bce023157f6e8a9307f2e2ac25159956e16c3a"
+    },
+    {
+      "path": "Random/rd_jokowi.mp3",
+      "size": 29130,
+      "hash": "9246605a33044700ae732294a7bce023157f6e8a9307f2e2ac25159956e16c3a"
+    },
+    {
+      "path": "Random/rd_jokowidiam.mp3",
+      "size": 142214,
+      "hash": "11653e12601bf5063d38dbec3528002f4f6b94613c5785677181f3bc5e66f358"
+    },
+    {
+      "path": "Random/rd_kobojw.mp3",
+      "size": 104832,
+      "hash": "a2f2660f47bb885bf988d65c9f73bebbabbcfff9386360e16af4b49fb206c9ee"
+    },
+    {
+      "path": "Random/rd_krakatau.mp3",
+      "size": 242140,
+      "hash": "7af79786ce20fcf71d0d52f5138ad79d8cb009cd88df1a8b9b588ab29e879aaa"
     },
     {
       "path": "Random/rd_laugh.mp3",
@@ -47,14 +117,19 @@
       "hash": "69f185a65580059bd279faf3efca8bc66dca0a984473cd5a97be3a3b5b3dd797"
     },
     {
+      "path": "Random/rd_rxking.mp3",
+      "size": 257808,
+      "hash": "f5e4cefb797790e6357ce11a2ca957b743701f548191e6022ab309b7c1267808"
+    },
+    {
       "path": "Random/rd_taco.mp3",
       "size": 31599,
       "hash": "e403f313cf8f7e2c89bebd220b3a534b483818d4edb04488b8c4022d3667690a"
     },
     {
-      "path": "CorrectAnswer/cr_wow.mp3",
-      "size": 67637,
-      "hash": "5118c619f0ab62e181f32d9eacd490441b49aaa7bb8e1be1b6b51e7a3c25debc"
+      "path": "Random/rd_wiwok.mp3",
+      "size": 93072,
+      "hash": "8ca09c7a5fd57b137cc2e94a64d7199ea81e6d2799ba7715280b5881d8d4342a"
     },
     {
       "path": "TimeRemaining/tm_sponge.mp3",
@@ -62,16 +137,41 @@
       "hash": "d38814f846f7f23db9fd3a135d659dc8c6aac89a1ef6f83d01d7da52823db335"
     },
     {
-      "path": "FailedRound/fl_sponge.mp3",
-      "size": 54782,
-      "hash": "7a21ade91762874e2b21be21efa15436bcc49e88ffb98d16cf597618caebfa93"
+      "path": "TimeRemaining/tm_upin.mp3",
+      "size": 257788,
+      "hash": "c171dbdba0a8e2afad1bf1506d7838281110d894f6cb112a238c92e2f74df00f"
     },
     {
-      "path": "Censored/cn_boom.mp3",
-      "size": 21230,
-      "hash": "c4dadbc0b9cd21b1313ec11845a00d9401bc208ae0f59f54a0282b8cb89d56c2"
+      "path": "WinnerScore/ws_champion.mp3",
+      "size": 245720,
+      "hash": "5ecf57afe6513e3ac5f0314e8f57b6e9a4aa7e449f9ff5e4f540462023c785ba"
+    },
+    {
+      "path": "WinnerScore/ws_dubistgut.mp3",
+      "size": 117923,
+      "hash": "cac1c41a3a5c4c479e70728d3beb136c151e17c69e69e86286c067a10b841575"
+    },
+    {
+      "path": "WrongAnswer/wg_fahh.mp3",
+      "size": 79456,
+      "hash": "f65311d5eea216616cde00edc9e0ee0e2be1f5a03aeeb5aef8b23d55f676826a"
+    },
+    {
+      "path": "WrongAnswer/wg_jokowi.mp3",
+      "size": 14358,
+      "hash": "5e0c72ef211e09e0e7db723f001a8028a1db771dd660d2b892c4f7035ec53c17"
+    },
+    {
+      "path": "WrongAnswer/wg_tetot.mp3",
+      "size": 29060,
+      "hash": "dc1935b1285d42ac66951bd1c8d80dfbfd1ab88518dfce7d325c5f3dc44f98b8"
+    },
+    {
+      "path": "YourTurn/yt_amongus.mp3",
+      "size": 99894,
+      "hash": "2a1a36e036c776bc030bf79ef69e312e6bbe0bc96b9ee0f30956ff4aad30ae4b"
     }
   ],
-  "total_size": 817341,
-  "total_files": 14
+  "total_size": 2831284,
+  "total_files": 34
 }
