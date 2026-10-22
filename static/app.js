@@ -11,7 +11,8 @@
 // [v2.3.0-OLD] const APP_VERSION = "2.3.0";
 // [v2.4.1-OLD] const APP_VERSION = "2.4.1";
 // [v2.5.0-OLD] const APP_VERSION = "2.5.0";
-const APP_VERSION = "2.5.2";
+// [v2.5.3-OLD] const APP_VERSION = "2.5.3";
+const APP_VERSION = "2.5.4";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -785,7 +786,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             };
 
             CanvasManager.addRemoteStroke(stroke);
-            if (window.AppSocket) {
+            if (typeof CanvasManager.emitStroke === 'function') {
+                CanvasManager.emitStroke(stroke, true);
+            } else if (window.AppSocket) {
                 window.AppSocket.emit('draw_stroke', { stroke: stroke, room_code: window.currentRoomCode });
             }
 
@@ -935,6 +938,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 room_code: roomCode
             });
         }
+        if (typeof CanvasManager !== 'undefined' && typeof CanvasManager.flushPendingStrokes === 'function') {
+            CanvasManager.flushPendingStrokes();
+        }
     });
 
     window.AppSocket.on('session_restored', function(data) {
@@ -1003,6 +1009,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // Signal Canvas Ready to server
         window.AppSocket.emit('canvas_ready', { room_code: window.currentRoomCode });
+        if (typeof CanvasManager !== 'undefined' && typeof CanvasManager.flushPendingStrokes === 'function') {
+            CanvasManager.flushPendingStrokes();
+        }
     });
 
     window.AppSocket.on('room_updated', function(data) {
@@ -1364,9 +1373,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
-    window.AppSocket.on('chat_message', function(data) {
+    function renderChatMessage(data) {
+        if (!chatList || !data) return;
         const div = document.createElement('div');
-        div.className = `chat-msg ${data.type}`;
+        div.className = `chat-msg ${data.type || 'chat'}`;
 
         if (data.type === 'sticker') {
             const cleanPath = (data.sticker_path || '').replace(/^\/Stickers\//, '');
@@ -1384,6 +1394,18 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         chatList.appendChild(div);
         chatList.scrollTop = chatList.scrollHeight;
+    }
+
+    window.AppSocket.on('chat_history', function(data) {
+        if (!data || !Array.isArray(data.messages)) return;
+        chatList.innerHTML = '';
+        data.messages.forEach(msg => {
+            renderChatMessage(msg);
+        });
+    });
+
+    window.AppSocket.on('chat_message', function(data) {
+        renderChatMessage(data);
     });
 
     window.AppSocket.on('system_message', function(data) {

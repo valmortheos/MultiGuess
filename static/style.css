@@ -1640,6 +1640,14 @@ input[type="text"]:focus {
     object-fit: cover;
 }
 
+.video-box.video-local video {
+    transform: scaleX(-1);
+}
+
+.video-box.video-remote video {
+    transform: none;
+}
+
 .video-label {
     position: absolute;
     bottom: 2px;

@@ -20,6 +20,25 @@
         }
     }
 
+    function showAudioEnableButton() {
+        let btn = document.getElementById('btn-enable-audio');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'btn-enable-audio';
+            btn.className = 'btn-enable-audio';
+            btn.textContent = '🔊 Ketuk untuk aktifkan suara';
+            btn.style.cssText = 'position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 10000; padding: 10px 18px; background: #ef4444; color: white; border: none; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer;';
+            btn.onclick = function() {
+                document.querySelectorAll('audio[id^="audio-peer-"]').forEach(a => {
+                    a.play().catch(e => console.warn('[Voice] Enable audio play error:', e));
+                });
+                btn.style.display = 'none';
+            };
+            document.body.appendChild(btn);
+        }
+        btn.style.display = 'block';
+    }
+
     function createAudioPeerElement(sid, stream) {
         let audioEl = document.getElementById(`audio-peer-${sid}`);
         if (!audioEl) {
@@ -35,7 +54,13 @@
         }
         if (audioEl.srcObject !== stream) {
             audioEl.srcObject = stream;
-            audioEl.play().catch(e => console.warn(`[Voice] Audio play error for peer ${sid}:`, e));
+            audioEl.play().then(() => {
+                const btn = document.getElementById('btn-enable-audio');
+                if (btn) btn.style.display = 'none';
+            }).catch(e => {
+                console.warn(`[Voice] Audio play blocked/error for peer ${sid}:`, e);
+                showAudioEnableButton();
+            });
         }
         return audioEl;
     }
@@ -151,7 +176,7 @@
                 if (audioTrack) {
                     state.localStream.addTrack(audioTrack);
                     state.micOn = true;
-                    // Attach to existing peers
+            // Attach audio track to all existing peers safely
                     for (const sid in state.peers) {
                         const pc = state.peers[sid].pc;
                         const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
@@ -210,7 +235,7 @@
             if (overlay) overlay.classList.remove('hidden');
             renderLocalVideo();
 
-            // Attach video track to all existing peers
+            // Attach video track to all existing peers cleanly
             for (const sid in state.peers) {
                 const pc = state.peers[sid].pc;
                 const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
@@ -218,18 +243,6 @@
                     await sender.replaceTrack(videoTrack);
                 } else {
                     pc.addTrack(videoTrack, state.localStream);
-                    // Renegotiate for new video track
-                    try {
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-                        window.AppSocket.emit('video_signal', {
-                            to: sid,
-                            signal: { sdp: pc.localDescription },
-                            room_code: window.currentRoomCode
-                        });
-                    } catch (e) {
-                        console.error('[AVChat] Offer renegotiation error:', e);
-                    }
                 }
             }
 
@@ -257,7 +270,7 @@
         if (!localBox) {
             localBox = document.createElement('div');
             localBox.id = 'video-box-local';
-            localBox.className = 'video-box';
+            localBox.className = 'video-box video-local';
 
             const video = document.createElement('video');
             video.autoplay = true;
@@ -286,7 +299,7 @@
         if (!box) {
             box = document.createElement('div');
             box.id = `video-box-${sid}`;
-            box.className = 'video-box';
+            box.className = 'video-box video-remote';
 
             const video = document.createElement('video');
             video.autoplay = true;
@@ -328,12 +341,24 @@
             return state.peers[sid].pc;
         }
 
+        const mySid = window.currentSid || (window.AppSocket ? window.AppSocket.id : '');
+        const polite = mySid < sid;
+
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:global.stun.twilio.com:3478' }
             ]
         });
+
+        const peerObj = {
+            pc: pc,
+            name: name || 'Peserta',
+            polite: polite,
+            makingOffer: false,
+            ignoreOffer: false,
+            isSettingRemoteAnswerPending: false
+        };
 
         if (state.localStream) {
             state.localStream.getTracks().forEach(track => {
@@ -352,35 +377,41 @@
         };
 
         pc.ontrack = event => {
-            console.log('[Voice] remote track from', sid, event.track ? event.track.kind : '');
+            const trackKind = event.track ? event.track.kind : 'unknown';
+            console.log(`[Voice] remote track kind=${trackKind} from ${sid}`);
             const remoteStream = event.streams[0] || new MediaStream([event.track]);
 
-            // Dedicated audio element so voice is audible regardless of video grid visibility
-            createAudioPeerElement(sid, remoteStream);
-
-            // Also update video element if video grid is active
-            addOrUpdateRemoteVideo(sid, remoteStream, name || (state.peers[sid] ? state.peers[sid].name : 'Peserta'));
+            if (trackKind === 'audio') {
+                createAudioPeerElement(sid, remoteStream);
+            } else if (trackKind === 'video') {
+                addOrUpdateRemoteVideo(sid, remoteStream, peerObj.name);
+            } else {
+                createAudioPeerElement(sid, remoteStream);
+                addOrUpdateRemoteVideo(sid, remoteStream, peerObj.name);
+            }
         };
 
-        if (initiator) {
-            pc.onnegotiationneeded = async () => {
-                try {
-                    const offer = await pc.createOffer();
-                    await pc.setLocalDescription(offer);
-                    if (window.AppSocket) {
-                        window.AppSocket.emit('voice_signal', {
-                            to: sid,
-                            signal: { sdp: pc.localDescription },
-                            room_code: window.currentRoomCode
-                        });
-                    }
-                } catch (e) {
-                    console.error('[AVChat] negotiationneeded offer error:', e);
+        pc.onnegotiationneeded = async () => {
+            try {
+                peerObj.makingOffer = true;
+                await pc.setLocalDescription();
+                const sdpStr = pc.localDescription ? pc.localDescription.sdp : '';
+                console.log(`[Voice] SDP offer m=audio present: ${sdpStr.includes('m=audio')}`);
+                if (window.AppSocket) {
+                    window.AppSocket.emit('voice_signal', {
+                        to: sid,
+                        signal: { sdp: pc.localDescription },
+                        room_code: window.currentRoomCode
+                    });
                 }
-            };
-        }
+            } catch (err) {
+                console.error('[AVChat] Perfect Negotiation offer error:', err);
+            } finally {
+                peerObj.makingOffer = false;
+            }
+        };
 
-        state.peers[sid] = { pc: pc, name: name || 'Peserta' };
+        state.peers[sid] = peerObj;
         return pc;
     }
 
@@ -405,14 +436,32 @@
             if (!data || !data.from || !data.signal) return;
 
             let peerObj = state.peers[data.from];
-            let pc = peerObj ? peerObj.pc : createPeer(data.from, false);
+            if (!peerObj) {
+                createPeer(data.from, false);
+                peerObj = state.peers[data.from];
+            }
+            const pc = peerObj.pc;
 
             try {
                 if (data.signal.sdp) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
-                    if (data.signal.sdp.type === 'offer') {
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
+                    const description = new RTCSessionDescription(data.signal.sdp);
+                    const readyForOffer = !peerObj.makingOffer && (pc.signalingState === 'stable' || peerObj.isSettingRemoteAnswerPending);
+                    const offerCollision = description.type === 'offer' && !readyForOffer;
+
+                    peerObj.ignoreOffer = !peerObj.polite && offerCollision;
+                    if (peerObj.ignoreOffer) {
+                        console.log('[Voice] Offer collision detected, impolite peer ignoring offer from', data.from);
+                        return;
+                    }
+
+                    peerObj.isSettingRemoteAnswerPending = (description.type === 'answer');
+                    await pc.setRemoteDescription(description);
+                    peerObj.isSettingRemoteAnswerPending = false;
+
+                    if (description.type === 'offer') {
+                        await pc.setLocalDescription();
+                        const sdpStr = pc.localDescription ? pc.localDescription.sdp : '';
+                        console.log(`[Voice] SDP answer m=audio present: ${sdpStr.includes('m=audio')}`);
                         window.AppSocket.emit('voice_signal', {
                             to: data.from,
                             signal: { sdp: pc.localDescription },
@@ -421,7 +470,13 @@
                     }
                 }
                 if (data.signal.candidate) {
-                    await pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+                    } catch (err) {
+                        if (!peerObj.ignoreOffer) {
+                            console.warn('[Voice] Error adding ICE candidate:', err);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error('[AVChat] Signal processing error:', err);

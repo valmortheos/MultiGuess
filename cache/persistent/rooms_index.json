@@ -1,1 +1,10 @@
-{}
+{
+  "RPGK": {
+    "created_at": 1792684243,
+    "host": "PlayerA",
+    "player_count": 2,
+    "status": "game_over",
+    "round": 4,
+    "current_word": ""
+  }
+}

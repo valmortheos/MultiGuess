@@ -317,9 +317,55 @@ const CanvasManager = (function() {
             };
 
             strokes.push(stroke);
-            if (window.AppSocket) {
-                window.AppSocket.emit('draw_stroke', { stroke: stroke, room_code: window.currentRoomCode });
+            emitStroke(stroke, true);
+        }
+    }
+
+    function generateStrokeId() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        return 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    function emitStroke(stroke, saveToDB = false) {
+        if (!stroke.strokeId) {
+            stroke.strokeId = generateStrokeId();
+        }
+        const roomCode = window.currentRoomCode;
+
+        if (saveToDB && roomCode && typeof DB !== 'undefined' && DB.savePendingStroke) {
+            DB.savePendingStroke(roomCode, stroke);
+        }
+
+        if (window.AppSocket) {
+            window.AppSocket.emit('draw_stroke', { stroke: stroke, room_code: roomCode }, (res) => {
+                if (res && res.ok && stroke.strokeId && typeof DB !== 'undefined' && DB.removePendingStroke) {
+                    DB.removePendingStroke(stroke.strokeId);
+                }
+            });
+        }
+    }
+
+    async function flushPendingStrokes() {
+        const roomCode = window.currentRoomCode;
+        if (!roomCode || !window.AppSocket || !window.AppSocket.connected || typeof DB === 'undefined' || !DB.getPendingStrokes) return;
+        try {
+            const pending = await DB.getPendingStrokes(roomCode);
+            if (pending && pending.length > 0) {
+                pending.forEach(item => {
+                    const stroke = item.stroke || item;
+                    if (window.AppSocket) {
+                        window.AppSocket.emit('draw_stroke', { stroke: stroke, room_code: roomCode }, (res) => {
+                            if (res && res.ok && stroke.strokeId) {
+                                DB.removePendingStroke(stroke.strokeId);
+                            }
+                        });
+                    }
+                });
             }
+        } catch (e) {
+            console.warn('[CanvasManager] Error flushing pending strokes:', e);
         }
     }
 
@@ -359,9 +405,7 @@ const CanvasManager = (function() {
         strokes.push(strokePoint);
         drawPoint(strokePoint);
 
-        if (window.AppSocket) {
-            window.AppSocket.emit('draw_stroke', { stroke: strokePoint, room_code: window.currentRoomCode });
-        }
+        emitStroke(strokePoint, false);
     }
 
     function handlePointerMove(e) {
@@ -381,9 +425,7 @@ const CanvasManager = (function() {
         strokes.push(strokePoint);
         drawPoint(strokePoint);
 
-        if (window.AppSocket) {
-            window.AppSocket.emit('draw_stroke', { stroke: strokePoint, room_code: window.currentRoomCode });
-        }
+        emitStroke(strokePoint, false);
     }
 
     function handlePointerUp(e) {
@@ -413,9 +455,7 @@ const CanvasManager = (function() {
 
         strokes.push(strokePoint);
 
-        if (window.AppSocket) {
-            window.AppSocket.emit('draw_stroke', { stroke: strokePoint, room_code: window.currentRoomCode });
-        }
+        emitStroke(strokePoint, true);
     }
 
     // Touch Event Fallback Handlers
@@ -555,6 +595,8 @@ const CanvasManager = (function() {
         getStrokes: () => strokes,
         registerStickerImage: registerStickerImage,
         getStickerCache: () => stickerCache,
-        getCurrentTool: () => currentTool
+        getCurrentTool: () => currentTool,
+        emitStroke: emitStroke,
+        flushPendingStrokes: flushPendingStrokes
     };
 })();
