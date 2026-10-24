@@ -38,6 +38,20 @@ chat_timestamps = {}
 # Thread safety lock for room state mutations & sound emissions
 room_state_lock = threading.Lock()
 
+def record_chat_history(room, msg_data):
+    """Appends a chat message to room['chat_history'] with a numeric millisecond timestamp, capped at 200 items."""
+    if not room or not isinstance(msg_data, dict):
+        return
+    if 'chat_history' not in room or not isinstance(room['chat_history'], list):
+        room['chat_history'] = []
+
+    entry = dict(msg_data)
+    entry['timestamp'] = int(time.time() * 1000)
+
+    room['chat_history'].append(entry)
+    if len(room['chat_history']) > 200:
+        room['chat_history'] = room['chat_history'][-200:]
+
 def _reattach_player(room, old_sid, new_sid, player):
     """Re-attaches a player to room with new sid upon session restoration/rejoin."""
     player['sid'] = new_sid
@@ -167,6 +181,7 @@ def start_next_turn(room_code):
     room['current_drawer'] = drawer_sid
     room['state'] = 'SELECTING_WORD'
     room['strokes'] = []
+    room['processed_stroke_ids'] = set()
     room['current_word'] = ''
     room['correct_guessers_count'] = 0
     room['turn_scores'] = {}
@@ -881,6 +896,9 @@ def handle_restore_session(data):
 
         broadcast_room_update(room_code)
 
+        if room.get('chat_history'):
+            emit('chat_history', {'messages': room['chat_history']}, to=sid)
+
         if room['strokes']:
             emit('strokes_rebuild', room['strokes'], to=sid)
 
@@ -986,6 +1004,9 @@ def handle_join_room(data):
             emit('room_joined', {'room_code': room_code, 'is_host': (sid == room['host_sid'])})
             broadcast_room_update(room_code)
 
+            if room.get('chat_history'):
+                emit('chat_history', {'messages': room['chat_history']}, to=sid)
+
             if room['strokes']:
                 emit('strokes_rebuild', room['strokes'], to=sid)
 
@@ -1028,6 +1049,9 @@ def handle_join_room(data):
             socketio.emit('system_message', {'text': f"{player_name} bergabung ke room."}, to=room_code)
 
         broadcast_room_update(room_code)
+
+        if room.get('chat_history'):
+            emit('chat_history', {'messages': room['chat_history']}, to=sid)
 
         if room['state'] in ['PLAYING', 'SELECTING_WORD', 'COUNTDOWN'] and room['strokes']:
             emit('strokes_rebuild', room['strokes'], to=sid)
@@ -1202,12 +1226,25 @@ def handle_draw_stroke(data):
     room = room_mgr.get_room(room_code)
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
+        if 'processed_stroke_ids' not in room or not isinstance(room['processed_stroke_ids'], set):
+            room['processed_stroke_ids'] = set()
+
+        stroke_id = stroke.get('strokeId') if isinstance(stroke, dict) else None
+
+        if stroke_id and stroke_id in room['processed_stroke_ids']:
+            return {'ok': True, 'dedup': True}
+
+        if stroke_id:
+            room['processed_stroke_ids'].add(stroke_id)
+
         if isinstance(stroke, dict):
             stroke['strokeOwner'] = sid
         room['strokes'].append(stroke)
         if len(room['strokes']) > 500:
             room['strokes'] = room['strokes'][-500:]
         socketio.emit('draw_stroke', stroke, to=room_code, include_self=False)
+        return {'ok': True}
+    return {'ok': False, 'reason': 'not_allowed'}
 
 @socketio.on('clear_canvas')
 def handle_clear_canvas(data):
@@ -1217,6 +1254,7 @@ def handle_clear_canvas(data):
 
     if room and room['state'] == 'PLAYING' and room['current_drawer'] == sid:
         room['strokes'] = []
+        room['processed_stroke_ids'] = set()
         socketio.emit('clear_canvas', to=room_code)
 
 @socketio.on('undo_stroke')
@@ -1279,12 +1317,14 @@ def handle_send_message(data):
         except Exception:
             return
 
-        socketio.emit('chat_message', {
+        msg_payload = {
             'sender': player['name'],
             'text': '',
             'type': 'sticker',
             'sticker_path': filename
-        }, to=room_code)
+        }
+        socketio.emit('chat_message', msg_payload, to=room_code)
+        record_chat_history(room, msg_payload)
         return
 
     if not text:
@@ -1296,11 +1336,13 @@ def handle_send_message(data):
         record_word_censored(matched)
         log_moderation('censored_chat', player['name'], text, matched, room_code)
         display_text = "[pesan disensor]"
-        socketio.emit('chat_message', {
+        msg_payload = {
             'sender': player['name'],
             'text': display_text,
             'type': 'censored'
-        }, to=room_code)
+        }
+        socketio.emit('chat_message', msg_payload, to=room_code)
+        record_chat_history(room, msg_payload)
 
         # Broadcast Censored sound & overlay event to room
         emit_play_sound(room_code, {
@@ -1313,22 +1355,26 @@ def handle_send_message(data):
 
     if room['state'] == 'PLAYING':
         if sid == room['current_drawer']:
-            socketio.emit('chat_message', {
+            msg_payload = {
                 'sender': player['name'],
                 'text': text,
                 'type': 'chat'
-            }, to=room_code)
+            }
+            socketio.emit('chat_message', msg_payload, to=room_code)
+            record_chat_history(room, msg_payload)
             return
 
         if player['has_guessed']:
             secret = room['current_word'].lower().strip()
             if secret in text.lower():
                 display_text = "[pesan disensor]"
-                socketio.emit('chat_message', {
+                msg_payload = {
                     'sender': player['name'],
                     'text': display_text,
                     'type': 'censored'
-                }, to=room_code)
+                }
+                socketio.emit('chat_message', msg_payload, to=room_code)
+                record_chat_history(room, msg_payload)
                 emit_play_sound(room_code, {
                     'type': 'Censored',
                     'username': player['name'],
@@ -1337,11 +1383,13 @@ def handle_send_message(data):
                 })
             else:
                 display_text = text
-                socketio.emit('chat_message', {
+                msg_payload = {
                     'sender': player['name'],
                     'text': display_text,
                     'type': 'chat'
-                }, to=room_code)
+                }
+                socketio.emit('chat_message', msg_payload, to=room_code)
+                record_chat_history(room, msg_payload)
             return
 
         guess = text.lower().strip()
@@ -1356,11 +1404,13 @@ def handle_send_message(data):
             player['score'] += points
             room['turn_scores'][sid] = points
 
-            socketio.emit('chat_message', {
+            msg_payload = {
                 'sender': player['name'],
                 'text': f"*** {player['name']} menebak dengan benar! (+{points} poin)",
                 'type': 'correct'
-            }, to=room_code)
+            }
+            socketio.emit('chat_message', msg_payload, to=room_code)
+            record_chat_history(room, msg_payload)
 
             emit_play_sound(room_code, {'type': 'CorrectAnswer'}, target_sid=sid)
 
@@ -1374,18 +1424,22 @@ def handle_send_message(data):
 
             emit_play_sound(room_code, {'type': 'WrongAnswer'}, target_sid=sid)
 
-            socketio.emit('chat_message', {
+            msg_payload = {
                 'sender': player['name'],
                 'text': text,
                 'type': 'chat'
-            }, to=room_code)
+            }
+            socketio.emit('chat_message', msg_payload, to=room_code)
+            record_chat_history(room, msg_payload)
             return
     else:
-        socketio.emit('chat_message', {
+        msg_payload = {
             'sender': player['name'],
             'text': text,
             'type': 'chat'
-        }, to=room_code)
+        }
+        socketio.emit('chat_message', msg_payload, to=room_code)
+        record_chat_history(room, msg_payload)
 
 # [v2.5.0] Voice & Video Call WebRTC Signaling Handlers
 @socketio.on('voice_join')
@@ -1475,6 +1529,7 @@ def handle_play_again(data):
         room['current_drawer'] = None
         room['current_word'] = ''
         room['strokes'] = []
+        room['processed_stroke_ids'] = set()
         room['timer_running'] = False
         room['has_played_time_remaining'] = False
         room['waiting_for_drawer'] = None

@@ -8,7 +8,7 @@ const DB = {
 
 const DB = {
     dbName: 'multiguess_db',
-    version: 3,
+    version: 4,
     db: null,
 
     async init() {
@@ -49,6 +49,10 @@ const DB = {
 
                 if (!db.objectStoreNames.contains('user_random_sounds')) {
                     db.createObjectStore('user_random_sounds', { keyPath: 'userId' });
+                }
+
+                if (!db.objectStoreNames.contains('pending_strokes')) {
+                    db.createObjectStore('pending_strokes', { keyPath: 'strokeId' });
                 }
             };
         });
@@ -110,6 +114,90 @@ const DB = {
                 tx.onabort = () => resolve(false);
             } catch (err) {
                 console.warn("IndexedDB putSound failed", err);
+                resolve(false);
+            }
+        });
+    },
+
+    async savePendingStroke(roomCode, stroke) {
+        if (!this.db || !stroke || !stroke.strokeId) return false;
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction('pending_strokes', 'readwrite');
+                const store = tx.objectStore('pending_strokes');
+                store.put({
+                    strokeId: stroke.strokeId,
+                    roomCode: roomCode,
+                    stroke: stroke,
+                    timestamp: Date.now()
+                });
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => resolve(false);
+            } catch (err) {
+                resolve(false);
+            }
+        });
+    },
+
+    async removePendingStroke(strokeId) {
+        if (!this.db || !strokeId) return false;
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction('pending_strokes', 'readwrite');
+                const store = tx.objectStore('pending_strokes');
+                store.delete(strokeId);
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => resolve(false);
+            } catch (err) {
+                resolve(false);
+            }
+        });
+    },
+
+    async getPendingStrokes(roomCode) {
+        if (!this.db) return [];
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction('pending_strokes', 'readonly');
+                const store = tx.objectStore('pending_strokes');
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const results = req.result || [];
+                    if (roomCode) {
+                        resolve(results.filter(item => item.roomCode === roomCode));
+                    } else {
+                        resolve(results);
+                    }
+                };
+                req.onerror = () => resolve([]);
+            } catch (err) {
+                resolve([]);
+            }
+        });
+    },
+
+    async clearPendingStrokes(roomCode) {
+        if (!this.db) return false;
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction('pending_strokes', 'readwrite');
+                const store = tx.objectStore('pending_strokes');
+                if (roomCode) {
+                    const req = store.getAll();
+                    req.onsuccess = () => {
+                        const items = req.result || [];
+                        items.forEach(item => {
+                            if (item.roomCode === roomCode) {
+                                store.delete(item.strokeId);
+                            }
+                        });
+                    };
+                } else {
+                    store.clear();
+                }
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => resolve(false);
+            } catch (err) {
                 resolve(false);
             }
         });

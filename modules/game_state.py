@@ -65,7 +65,8 @@ class RoomManager:
             'paused_time_remaining': None,
             'timer_task_active': False,
             'correct_guessers_count': 0,
-            'turn_scores': {}
+            'turn_scores': {},
+            'chat_history': []
         }
         self.save_cache()
         return room_code
