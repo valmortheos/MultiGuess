@@ -1,10 +1,10 @@
 {
-  "WXCR": {
-    "created_at": 1793200252,
-    "host": "PlayerA",
-    "player_count": 3,
-    "status": "playing",
+  "TICU": {
+    "created_at": 1793201907,
+    "host": "Alice",
+    "player_count": 1,
+    "status": "lobby",
     "round": 1,
-    "current_word": "komputer"
+    "current_word": ""
   }
 }

@@ -8,7 +8,7 @@ const DB = {
 
 const DB = {
     dbName: 'multiguess_db',
-    version: 4,
+    version: 5,
     db: null,
 
     async init() {

@@ -217,10 +217,55 @@ input, textarea, select {
     color: #374151;
 }
 
+.lobby-tabs-bar {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 8px 0;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 4px;
+}
+
+.lobby-tab-btn {
+    flex: 1;
+    padding: 8px 12px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.lobby-tab-btn.active {
+    background: #3b82f6;
+    color: #ffffff;
+    border-color: #3b82f6;
+}
+
+.lobby-tab-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 120px;
+}
+
+.lobby-players {
+    flex: 1;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
 .lobby-chat-container {
-    margin-top: 16px;
-    border-top: 1px solid #e5e7eb;
-    padding-top: 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
 }
 
 .lobby-chat-container h3 {
@@ -231,8 +276,9 @@ input, textarea, select {
 }
 
 .lobby-chat-list {
-    max-height: 120px;
-    min-height: 80px;
+    flex: 1;
+    max-height: 180px;
+    min-height: 100px;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     padding: 8px;
@@ -816,10 +862,15 @@ input[type="text"]:focus {
 .modal-bottom-sheet {
     width: 100%;
     max-width: 480px;
+    max-height: 90dvh;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: #ffffff;
     border-top-left-radius: 16px;
     border-top-right-radius: 16px;
-    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
     text-align: center;
     animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);

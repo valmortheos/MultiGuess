@@ -89,8 +89,8 @@ const SoundPlayer = (function() {
             console.warn('[SoundPlayer] Sound cache version check error:', e);
         }
 
-        // Unlock AudioContext on first user gesture for ALL clients
-        const unlockEvents = ['pointerdown', 'touchstart', 'click'];
+        // Unlock AudioContext as early as possible on any first user gesture for ALL clients
+        const unlockEvents = ['pointerdown', 'touchstart', 'mousedown', 'click', 'keydown'];
         const unlockHandler = () => {
             const ctx = ensureAudioContext();
             if (ctx && ctx.state === 'suspended') {
@@ -98,10 +98,13 @@ const SoundPlayer = (function() {
             }
             audioUnlocked = true;
             console.log('[SoundPlayer] AudioContext unlocked successfully.');
-            unlockEvents.forEach(evt => document.removeEventListener(evt, unlockHandler));
+            unlockEvents.forEach(evt => document.removeEventListener(evt, unlockHandler, true));
         };
 
         unlockEvents.forEach(evt => document.addEventListener(evt, unlockHandler, { once: true, capture: true }));
+
+        // Attempt pre-decoding after config loaded
+        predecodeAllSounds();
 
         // Load preference defensively (default ON, only string 'false' literal disables)
         DB.get('settings', 'sound_effects').then(val => {
@@ -323,10 +326,42 @@ const SoundPlayer = (function() {
         await playByPath(targetPath, category);
     }
 
+    async function predecodeAllSounds() {
+        if (!soundConfig || !soundConfig.categories) return;
+        const ctx = ensureAudioContext();
+        if (!ctx) return;
+
+        const pathsToDecode = [];
+        for (const cat in soundConfig.categories) {
+            const list = soundConfig.categories[cat];
+            if (Array.isArray(list)) {
+                list.forEach(path => {
+                    if (!bufferCache.has(path) && !pathsToDecode.includes(path)) {
+                        pathsToDecode.push(path);
+                    }
+                });
+            }
+        }
+
+        if (pathsToDecode.length === 0) return;
+        console.log(`[SoundPlayer] Starting background pre-decoding for ${pathsToDecode.length} sounds...`);
+
+        for (const path of pathsToDecode) {
+            try {
+                await getAudioBuffer(path);
+            } catch (err) {
+                console.warn('[SoundPlayer] Pre-decoding warning for', path, err);
+            }
+        }
+        console.log('[SoundPlayer] Background pre-decoding complete. Cache size:', bufferCache.size);
+    }
+
     async function reloadSoundConfig() {
         bufferCache.clear();
         console.log('[SoundPlayer] Reloading sound config and cleared bufferCache.');
-        return await loadSoundConfig();
+        const cfg = await loadSoundConfig();
+        predecodeAllSounds();
+        return cfg;
     }
 
     return {
@@ -338,6 +373,7 @@ const SoundPlayer = (function() {
         setSoundEnabled: setSoundEnabled,
         getSoundEnabled: getSoundEnabled,
         reloadSoundConfig: reloadSoundConfig,
-        getNextFromPool: getNextFromPool
+        getNextFromPool: getNextFromPool,
+        predecodeAllSounds: predecodeAllSounds
     };
 })();

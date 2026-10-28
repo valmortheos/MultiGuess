@@ -34,8 +34,9 @@
     <!-- [v2.5.2-OLD] <title>MultiGuess v2.5.2 - Game Draw & Guess</title> -->
     <!-- [v2.5.3-OLD] <title>MultiGuess v2.5.3 - Game Draw & Guess</title> -->
     <!-- [v2.5.4-OLD] <title>MultiGuess v2.5.4 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.5.5 - Game Draw & Guess</title>
-    <link rel="stylesheet" href="/static/style.css?v=255">
+    <!-- [v2.5.5-OLD] <title>MultiGuess v2.5.5 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.5.6 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css?v=256">
     <!-- Socket.IO Local Library -->
     <script src="/static/socket.io.min.js"></script>
 </head>
@@ -152,7 +153,8 @@
             <!-- [v2.2.1-OLD] <div class="footer-version">MultiGuess v2.2.1</div> -->
             <!-- [v2.2.2-OLD] <div class="footer-version">MultiGuess v2.2.2</div> -->
             <!-- [v2.2.3-OLD] <div class="footer-version">MultiGuess v2.2.3</div> -->
-            <div class="footer-version">MultiGuess v2.5.5</div>
+            <!-- [v2.5.5-OLD] <div class="footer-version">MultiGuess v2.5.5</div> -->
+            <div class="footer-version">MultiGuess v2.5.6</div>
         </div>
     </div>
 
@@ -344,19 +346,28 @@
                 -->
             </div>
 
-            <div class="lobby-players">
-                <h3>Daftar Pemain dalam Room:</h3>
-                <ul id="lobby-player-list"></ul>
+            <!-- Lobby Tabs Navigation (v2.5.6) -->
+            <div id="lobby-tabs" class="lobby-tabs-bar">
+                <button id="tab-btn-players" class="lobby-tab-btn active" type="button">👥 Pemain</button>
+                <button id="tab-btn-chat" class="lobby-tab-btn" type="button">💬 Chat</button>
             </div>
 
-            <!-- Lobby Chat Section (v2.5.5) -->
-            <div id="lobby-chat-container" class="lobby-chat-container">
-                <h3>Chat Lobby</h3>
-                <div id="lobby-chat-list" class="chat-list lobby-chat-list"></div>
-                <form id="lobby-chat-form" class="lobby-chat-form">
-                    <input type="text" id="lobby-chat-input" placeholder="Ketik pesan lobby..." autocomplete="off" maxlength="100">
-                    <button type="submit" id="btn-lobby-send" class="btn btn-primary btn-sm">Kirim</button>
-                </form>
+            <!-- Tab Content 1: Players List -->
+            <div id="tab-content-players" class="lobby-tab-content">
+                <div class="lobby-players">
+                    <ul id="lobby-player-list"></ul>
+                </div>
+            </div>
+
+            <!-- Tab Content 2: Lobby Chat -->
+            <div id="tab-content-chat" class="lobby-tab-content hidden">
+                <div id="lobby-chat-container" class="lobby-chat-container">
+                    <div id="lobby-chat-list" class="chat-list lobby-chat-list"></div>
+                    <form id="lobby-chat-form" class="lobby-chat-form">
+                        <input type="text" id="lobby-chat-input" placeholder="Ketik pesan lobby..." autocomplete="off" maxlength="100">
+                        <button type="submit" id="btn-lobby-send" class="btn btn-primary btn-sm">Kirim</button>
+                    </form>
+                </div>
             </div>
 
             <div class="modal-actions">
@@ -380,7 +391,8 @@
             <!-- [v2.5.2-OLD] <div class="footer-version">MultiGuess v2.5.2</div> -->
             <!-- [v2.5.3-OLD] <div class="footer-version">MultiGuess v2.5.3</div> -->
             <!-- [v2.5.4-OLD] <div class="footer-version">MultiGuess v2.5.4</div> -->
-            <div class="footer-version">MultiGuess v2.5.5</div>
+            <!-- [v2.5.5-OLD] <div class="footer-version">MultiGuess v2.5.5</div> -->
+            <div class="footer-version">MultiGuess v2.5.6</div>
             <div class="footer-credit" style="font-size: 11px; color: #6b7280; margin-top: 4px;">Created by Valmortheos · Instagram: @valmortheoz</div>
             <!-- [v2.3.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div> -->
             <!-- [v2.5.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.0</div> -->
@@ -388,7 +400,8 @@
             <!-- [v2.5.2-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.2</div> -->
             <!-- [v2.5.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.3</div> -->
             <!-- [v2.5.4-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.4</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.5</div>
+            <!-- [v2.5.5-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.5</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.6</div>
         </div>
     </div>
 
@@ -512,11 +525,11 @@
         </div>
     </div>
 
-    <script src="/static/storage.js?v=255"></script>
-    <script src="/static/sound-loader.js?v=255"></script>
-    <script src="/static/sound-player.js?v=255"></script>
-    <script src="/static/canvas.js?v=255"></script>
-    <script src="/static/voice.js?v=255"></script>
-    <script src="/static/app.js?v=255"></script>
+    <script src="/static/storage.js?v=256"></script>
+    <script src="/static/sound-loader.js?v=256"></script>
+    <script src="/static/sound-player.js?v=256"></script>
+    <script src="/static/canvas.js?v=256"></script>
+    <script src="/static/voice.js?v=256"></script>
+    <script src="/static/app.js?v=256"></script>
 </body>
 </html>

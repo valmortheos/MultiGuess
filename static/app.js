@@ -13,7 +13,8 @@
 // [v2.5.0-OLD] const APP_VERSION = "2.5.0";
 // [v2.5.3-OLD] const APP_VERSION = "2.5.3";
 // [v2.5.4-OLD] const APP_VERSION = "2.5.4";
-const APP_VERSION = "2.5.5";
+// [v2.5.5-OLD] const APP_VERSION = "2.5.5";
+const APP_VERSION = "2.5.6";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -232,10 +233,33 @@ document.addEventListener('DOMContentLoaded', async function() {
     const homeJoinForm = document.getElementById('home-join-form');
     const btnStep2Back = document.getElementById('btn-step2-back');
 
-    // Lobby Chat Elements (v2.5.5)
+    // Lobby Chat & Tabs Elements (v2.5.6)
     const lobbyChatList = document.getElementById('lobby-chat-list');
     const lobbyChatForm = document.getElementById('lobby-chat-form');
     const lobbyChatInput = document.getElementById('lobby-chat-input');
+
+    const tabBtnPlayers = document.getElementById('tab-btn-players');
+    const tabBtnChat = document.getElementById('tab-btn-chat');
+    const tabContentPlayers = document.getElementById('tab-content-players');
+    const tabContentChat = document.getElementById('tab-content-chat');
+
+    if (tabBtnPlayers && tabBtnChat) {
+        tabBtnPlayers.addEventListener('click', function() {
+            vibrate(10);
+            tabBtnPlayers.classList.add('active');
+            tabBtnChat.classList.remove('active');
+            if (tabContentPlayers) tabContentPlayers.classList.remove('hidden');
+            if (tabContentChat) tabContentChat.classList.add('hidden');
+        });
+
+        tabBtnChat.addEventListener('click', function() {
+            vibrate(10);
+            tabBtnChat.classList.add('active');
+            tabBtnPlayers.classList.remove('active');
+            if (tabContentChat) tabContentChat.classList.remove('hidden');
+            if (tabContentPlayers) tabContentPlayers.classList.add('hidden');
+        });
+    }
 
     function updateNameNextBtnState() {
         if (!inputPlayerName || !btnNameNext) return;
@@ -1455,37 +1479,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             vibrate(20);
             SoundPlayer.play(type);
         }
-    });
-
-    function renderChatMessage(data) {
-        if (!chatList || !data) return;
-        const div = document.createElement('div');
-        div.className = `chat-msg ${data.type || 'chat'}`;
-
-        if (data.type === 'sticker') {
-            const cleanPath = (data.sticker_path || '').replace(/^\/Stickers\//, '');
-            div.className = 'chat-msg sticker';
-            div.innerHTML = `<span class="chat-sender">${data.sender}:</span><img src="/Stickers/${cleanPath}" class="chat-sticker" alt="sticker">`;
-        } else if (data.type === 'system') {
-            div.textContent = data.text;
-        } else if (data.type === 'correct') {
-            div.textContent = data.text;
-        } else if (data.type === 'censored') {
-            div.textContent = `${data.sender}: ${data.text}`;
-        } else {
-            div.innerHTML = `<span class="chat-sender">${data.sender}:</span> ${data.text}`;
-        }
-
-        chatList.appendChild(div);
-        chatList.scrollTop = chatList.scrollHeight;
-    }
-
-    window.AppSocket.on('chat_history', function(data) {
-        if (!data || !Array.isArray(data.messages)) return;
-        chatList.innerHTML = '';
-        data.messages.forEach(msg => {
-            renderChatMessage(msg);
-        });
     });
 
     if (lobbyChatForm) {
