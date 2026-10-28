@@ -12,7 +12,8 @@
 // [v2.4.1-OLD] const APP_VERSION = "2.4.1";
 // [v2.5.0-OLD] const APP_VERSION = "2.5.0";
 // [v2.5.3-OLD] const APP_VERSION = "2.5.3";
-const APP_VERSION = "2.5.4";
+// [v2.5.4-OLD] const APP_VERSION = "2.5.4";
+const APP_VERSION = "2.5.5";
 window.AppSocket = io();
 window.currentRoomCode = null;
 window.isHost = false;
@@ -220,10 +221,88 @@ document.addEventListener('DOMContentLoaded', async function() {
     const btnPlayAgain = document.getElementById('btn-play-again');
     const btnExitPodium = document.getElementById('btn-exit-podium');
 
+    // Multi-Step Home Screen Elements (v2.5.5)
+    const homeStepName = document.getElementById('home-step-name');
+    const homeStepChoices = document.getElementById('home-step-choices');
+    const btnNameNext = document.getElementById('btn-name-next');
+    const btnChangeName = document.getElementById('btn-change-name');
+    const displayPlayerName = document.getElementById('display-player-name');
+    const cardShowJoin = document.getElementById('card-show-join');
+    const choiceCardsContainer = document.getElementById('choice-cards-container');
+    const homeJoinForm = document.getElementById('home-join-form');
+    const btnStep2Back = document.getElementById('btn-step2-back');
+
+    // Lobby Chat Elements (v2.5.5)
+    const lobbyChatList = document.getElementById('lobby-chat-list');
+    const lobbyChatForm = document.getElementById('lobby-chat-form');
+    const lobbyChatInput = document.getElementById('lobby-chat-input');
+
+    function updateNameNextBtnState() {
+        if (!inputPlayerName || !btnNameNext) return;
+        const val = inputPlayerName.value.trim();
+        btnNameNext.disabled = (val.length < 3);
+    }
+
+    if (inputPlayerName) {
+        inputPlayerName.addEventListener('input', updateNameNextBtnState);
+    }
+
+    async function proceedToStepChoices(name) {
+        if (displayPlayerName) displayPlayerName.textContent = `Halo, ${name}!`;
+        await DB.set('settings', 'player_name', name);
+        if (homeStepName) homeStepName.classList.add('hidden');
+        if (homeStepChoices) homeStepChoices.classList.remove('hidden');
+        if (choiceCardsContainer) choiceCardsContainer.classList.remove('hidden');
+        if (homeJoinForm) homeJoinForm.classList.add('hidden');
+    }
+
+    if (btnNameNext) {
+        btnNameNext.addEventListener('click', async function() {
+            vibrate(10);
+            const name = inputPlayerName.value.trim();
+            if (name.length >= 3) {
+                await proceedToStepChoices(name);
+            } else {
+                showToast('Nama minimal 3 karakter.');
+            }
+        });
+    }
+
+    if (btnChangeName) {
+        btnChangeName.addEventListener('click', function() {
+            vibrate(10);
+            if (homeStepChoices) homeStepChoices.classList.add('hidden');
+            if (homeStepName) homeStepName.classList.remove('hidden');
+            if (inputPlayerName) inputPlayerName.focus();
+        });
+    }
+
+    if (cardShowJoin) {
+        cardShowJoin.addEventListener('click', function() {
+            vibrate(10);
+            if (choiceCardsContainer) choiceCardsContainer.classList.add('hidden');
+            if (homeJoinForm) homeJoinForm.classList.remove('hidden');
+            if (inputRoomCode) inputRoomCode.focus();
+        });
+    }
+
+    if (btnStep2Back) {
+        btnStep2Back.addEventListener('click', function() {
+            vibrate(10);
+            if (homeJoinForm) homeJoinForm.classList.add('hidden');
+            if (choiceCardsContainer) choiceCardsContainer.classList.remove('hidden');
+        });
+    }
+
     // Restore Name & Settings from DB
     const savedName = await DB.get('settings', 'player_name');
-    if (savedName) {
+    if (savedName && savedName.trim().length >= 3) {
         inputPlayerName.value = savedName;
+        updateNameNextBtnState();
+        await proceedToStepChoices(savedName);
+    } else {
+        if (homeStepName) homeStepName.classList.remove('hidden');
+        if (homeStepChoices) homeStepChoices.classList.add('hidden');
     }
     const savedHaptic = await DB.get('settings', 'haptic_enabled');
     if (savedHaptic !== null && toggleHaptic) {
@@ -335,14 +414,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         vibrate(10);
         try {
             const name = await savePlayerName();
-            console.log('[btn] name =', JSON.stringify(name));
-            if (!name) {
-                showToast('Isi nama dulu ya');
+            if (!name || name.length < 3) {
+                showToast('Isi nama minimal 3 karakter dulu');
                 return;
             }
-            console.log('[btn] socket.connected =', window.AppSocket?.connected);
-            safeEmit('create_room', { player_name: name, name: name, client_token: window.clientToken });
-            console.log('[emit] create_room sent OK');
+            confirmTitle.textContent = "Buat Room Baru";
+            confirmMessage.textContent = "Yakin buat room baru? Atau kamu mau join room yang sudah ada?";
+            onConfirmAction = function() {
+                safeEmit('create_room', { player_name: name, name: name, client_token: window.clientToken });
+            };
+            modalConfirm.classList.remove('hidden');
         } catch (err) {
             console.error('[btn] error:', err);
             showToast('Error: ' + err.message);
@@ -445,7 +526,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         modalPodium.classList.add('hidden');
         countdownOverlay.classList.add('hidden');
         screenHome.classList.remove('hidden');
+        if (choiceCardsContainer) choiceCardsContainer.classList.remove('hidden');
+        if (homeJoinForm) homeJoinForm.classList.add('hidden');
         chatList.innerHTML = '';
+        if (lobbyChatList) lobbyChatList.innerHTML = '';
         if (floatingOverlayContainer) floatingOverlayContainer.innerHTML = '';
         CanvasManager.clear();
     }
@@ -1399,6 +1483,62 @@ document.addEventListener('DOMContentLoaded', async function() {
     window.AppSocket.on('chat_history', function(data) {
         if (!data || !Array.isArray(data.messages)) return;
         chatList.innerHTML = '';
+        data.messages.forEach(msg => {
+            renderChatMessage(msg);
+        });
+    });
+
+    if (lobbyChatForm) {
+        lobbyChatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const text = lobbyChatInput ? lobbyChatInput.value.trim() : '';
+            if (text && window.currentRoomCode) {
+                window.AppSocket.emit('send_message', {
+                    room_code: window.currentRoomCode,
+                    text: text
+                });
+                if (lobbyChatInput) lobbyChatInput.value = '';
+            }
+        });
+    }
+
+    function renderChatMessage(data) {
+        if (!data) return;
+        const createMsgElement = () => {
+            const div = document.createElement('div');
+            div.className = `chat-msg ${data.type || 'chat'}`;
+
+            if (data.type === 'sticker') {
+                const cleanPath = (data.sticker_path || '').replace(/^\/Stickers\//, '');
+                div.className = 'chat-msg sticker';
+                div.innerHTML = `<span class="chat-sender">${data.sender}:</span><img src="/Stickers/${cleanPath}" class="chat-sticker" alt="sticker">`;
+            } else if (data.type === 'system') {
+                div.textContent = data.text;
+            } else if (data.type === 'correct') {
+                div.textContent = data.text;
+            } else if (data.type === 'censored') {
+                div.textContent = `${data.sender}: ${data.text}`;
+            } else {
+                div.innerHTML = `<span class="chat-sender">${data.sender}:</span> ${data.text}`;
+            }
+            return div;
+        };
+
+        if (chatList) {
+            chatList.appendChild(createMsgElement());
+            chatList.scrollTop = chatList.scrollHeight;
+        }
+
+        if (lobbyChatList && modalLobby && !modalLobby.classList.contains('hidden')) {
+            lobbyChatList.appendChild(createMsgElement());
+            lobbyChatList.scrollTop = lobbyChatList.scrollHeight;
+        }
+    }
+
+    window.AppSocket.on('chat_history', function(data) {
+        if (!data || !Array.isArray(data.messages)) return;
+        if (chatList) chatList.innerHTML = '';
+        if (lobbyChatList) lobbyChatList.innerHTML = '';
         data.messages.forEach(msg => {
             renderChatMessage(msg);
         });

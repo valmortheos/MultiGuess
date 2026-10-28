@@ -9,7 +9,7 @@ class TestV254Features(unittest.TestCase):
         room_mgr.rooms.clear()
 
     def test_version_bump(self):
-        self.assertEqual(APP_VERSION, "2.5.4")
+        self.assertEqual(APP_VERSION, "2.5.5")
 
     def test_stroke_deduplication_and_ack(self):
         client = socketio.test_client(app)
