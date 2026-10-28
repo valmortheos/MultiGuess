@@ -33,8 +33,9 @@
     <!-- [v2.5.0-OLD] <title>MultiGuess v2.5.0 - Game Draw & Guess</title> -->
     <!-- [v2.5.2-OLD] <title>MultiGuess v2.5.2 - Game Draw & Guess</title> -->
     <!-- [v2.5.3-OLD] <title>MultiGuess v2.5.3 - Game Draw & Guess</title> -->
-    <title>MultiGuess v2.5.4 - Game Draw & Guess</title>
-    <link rel="stylesheet" href="/static/style.css?v=254">
+    <!-- [v2.5.4-OLD] <title>MultiGuess v2.5.4 - Game Draw & Guess</title> -->
+    <title>MultiGuess v2.5.5 - Game Draw & Guess</title>
+    <link rel="stylesheet" href="/static/style.css?v=255">
     <!-- Socket.IO Local Library -->
     <script src="/static/socket.io.min.js"></script>
 </head>
@@ -87,7 +88,7 @@
         </div>
     </div>
 
-    <!-- Screen 1: Home / Welcome View -->
+    <!-- Screen 1: Home / Welcome View (Multi-Step Flow v2.5.5) -->
     <div id="screen-home" class="screen active">
         <div class="home-card">
             <div class="brand">
@@ -101,17 +102,44 @@
                 <p class="subtitle">Game Tebak Gambar Multiplayer</p>
             </div>
 
-            <div class="form-group">
-                <label for="player-name">Nama Pemain</label>
-                <input type="text" id="player-name" placeholder="Masukkan nama kamu" maxlength="15" autocomplete="off">
+            <!-- Step 1: Input Nama -->
+            <div id="home-step-name" class="home-step">
+                <div class="form-group">
+                    <label for="player-name">Nama Pemain</label>
+                    <input type="text" id="player-name" placeholder="Masukkan nama kamu (min 3 huruf)" maxlength="15" autocomplete="off">
+                </div>
+                <button id="btn-name-next" class="btn btn-primary btn-full" disabled>Lanjut →</button>
             </div>
 
-            <div class="action-buttons">
-                <button id="btn-create-room" class="btn btn-primary">Buat Room Baru</button>
-                <div class="divider"><span>atau</span></div>
-                <div class="join-group">
-                    <input type="text" id="room-code-input" placeholder="KODE ROOM (4 Huruf)" maxlength="6" autocomplete="off" style="text-transform: uppercase;">
-                    <button id="btn-join-room" class="btn btn-secondary">Join Room</button>
+            <!-- Step 2: Choice Options -->
+            <div id="home-step-choices" class="home-step hidden">
+                <div class="user-greeting-bar">
+                    <span id="display-player-name">Halo, Pemain!</span>
+                    <button id="btn-change-name" class="btn-text-sm">✏️ Ubah Nama</button>
+                </div>
+
+                <div id="choice-cards-container" class="choice-cards-grid">
+                    <div id="btn-create-room" class="choice-card choice-create">
+                        <div class="choice-icon">➕</div>
+                        <h3>Buat Room Baru</h3>
+                        <p>Jadi Host & atur ronde game</p>
+                    </div>
+
+                    <div id="card-show-join" class="choice-card choice-join">
+                        <div class="choice-icon">🔑</div>
+                        <h3>Join Room</h3>
+                        <p>Masuk room dengan kode 4 huruf</p>
+                    </div>
+                </div>
+
+                <!-- Join Code Input Sub-step -->
+                <div id="home-join-form" class="home-join-container hidden">
+                    <div class="join-group-vertical">
+                        <label for="room-code-input">Masukkan Kode Room</label>
+                        <input type="text" id="room-code-input" placeholder="KODE ROOM (4 Huruf)" maxlength="6" autocomplete="off" style="text-transform: uppercase;">
+                        <button id="btn-join-room" class="btn btn-secondary btn-full">Join Room</button>
+                        <button id="btn-step2-back" class="btn btn-text-sm" style="margin-top: 6px;">← Kembali ke Pilihan</button>
+                    </div>
                 </div>
             </div>
 
@@ -124,7 +152,7 @@
             <!-- [v2.2.1-OLD] <div class="footer-version">MultiGuess v2.2.1</div> -->
             <!-- [v2.2.2-OLD] <div class="footer-version">MultiGuess v2.2.2</div> -->
             <!-- [v2.2.3-OLD] <div class="footer-version">MultiGuess v2.2.3</div> -->
-            <div class="footer-version">MultiGuess v2.3.0</div>
+            <div class="footer-version">MultiGuess v2.5.5</div>
         </div>
     </div>
 
@@ -321,6 +349,16 @@
                 <ul id="lobby-player-list"></ul>
             </div>
 
+            <!-- Lobby Chat Section (v2.5.5) -->
+            <div id="lobby-chat-container" class="lobby-chat-container">
+                <h3>Chat Lobby</h3>
+                <div id="lobby-chat-list" class="chat-list lobby-chat-list"></div>
+                <form id="lobby-chat-form" class="lobby-chat-form">
+                    <input type="text" id="lobby-chat-input" placeholder="Ketik pesan lobby..." autocomplete="off" maxlength="100">
+                    <button type="submit" id="btn-lobby-send" class="btn btn-primary btn-sm">Kirim</button>
+                </form>
+            </div>
+
             <div class="modal-actions">
                 <button id="btn-start-game" class="btn btn-success hidden">Mulai Permainan</button>
                 <div id="waiting-host-msg" class="waiting-text hidden">Menunggu host memulai permainan...</div>
@@ -341,14 +379,16 @@
             <!-- [v2.5.1-OLD] <div class="footer-version">MultiGuess v2.5.1</div> -->
             <!-- [v2.5.2-OLD] <div class="footer-version">MultiGuess v2.5.2</div> -->
             <!-- [v2.5.3-OLD] <div class="footer-version">MultiGuess v2.5.3</div> -->
-            <div class="footer-version">MultiGuess v2.5.4</div>
+            <!-- [v2.5.4-OLD] <div class="footer-version">MultiGuess v2.5.4</div> -->
+            <div class="footer-version">MultiGuess v2.5.5</div>
             <div class="footer-credit" style="font-size: 11px; color: #6b7280; margin-top: 4px;">Created by Valmortheos · Instagram: @valmortheoz</div>
             <!-- [v2.3.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.3.0</div> -->
             <!-- [v2.5.0-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.0</div> -->
             <!-- [v2.5.1-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.1</div> -->
             <!-- [v2.5.2-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.2</div> -->
             <!-- [v2.5.3-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.3</div> -->
-            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.4</div>
+            <!-- [v2.5.4-OLD] <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.4</div> -->
+            <div class="footer-version" style="margin-top: 12px;">MultiGuess v2.5.5</div>
         </div>
     </div>
 
@@ -472,11 +512,11 @@
         </div>
     </div>
 
-    <script src="/static/storage.js?v=254"></script>
-    <script src="/static/sound-loader.js?v=254"></script>
-    <script src="/static/sound-player.js?v=254"></script>
-    <script src="/static/canvas.js?v=254"></script>
-    <script src="/static/voice.js?v=254"></script>
-    <script src="/static/app.js?v=254"></script>
+    <script src="/static/storage.js?v=255"></script>
+    <script src="/static/sound-loader.js?v=255"></script>
+    <script src="/static/sound-player.js?v=255"></script>
+    <script src="/static/canvas.js?v=255"></script>
+    <script src="/static/voice.js?v=255"></script>
+    <script src="/static/app.js?v=255"></script>
 </body>
 </html>

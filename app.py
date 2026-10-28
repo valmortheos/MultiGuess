@@ -1022,8 +1022,9 @@ def handle_join_room(data):
                     emit('your_word', {'word': room['current_word']}, to=sid)
         return
 
-    # New Player Joining
-    if len(room['players']) >= MAX_PLAYERS:
+    # New Player Joining - Only count active (non-disconnected) players against MAX_PLAYERS
+    active_players = [p for p in room['players'].values() if not p.get('disconnected')]
+    if len(active_players) >= MAX_PLAYERS:
         emit('join_error', {'reason': 'room_full', 'code': room_code, 'message': 'Room sudah penuh (maksimal 8 pemain).'})
         return
 
@@ -1055,6 +1056,15 @@ def handle_join_room(data):
 
         if room['state'] in ['PLAYING', 'SELECTING_WORD', 'COUNTDOWN'] and room['strokes']:
             emit('strokes_rebuild', room['strokes'], to=sid)
+
+        if room['state'] == 'PLAYING':
+            emit('round_started', {
+                'drawer_sid': room['current_drawer'],
+                'word_length': len(room['current_word']),
+                'round': room['current_round'],
+                'time_left': room['time_remaining']
+            }, to=sid)
+            emit('timer_tick', {'time_remaining': room['time_remaining']}, to=sid)
 
 @socketio.on('canvas_ready')
 def handle_canvas_ready(data):
