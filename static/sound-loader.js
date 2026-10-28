@@ -63,6 +63,9 @@ const SoundLoader = (function() {
         if (isCached) {
             console.log('[SoundLoader] Sound cache up to date (version match). Skipping preloader.');
             hideLoader();
+            if (typeof SoundPlayer !== 'undefined' && SoundPlayer.predecodeAllSounds) {
+                SoundPlayer.predecodeAllSounds();
+            }
             return;
         }
 
@@ -164,6 +167,9 @@ const SoundLoader = (function() {
                 await DB.set('sound_meta', 'version', { key: 'version', value: manifest.version, timestamp: Date.now() });
                 if (progressBarFill) progressBarFill.style.width = '100%';
                 if (statusText) statusText.textContent = 'Audio siap!';
+                if (typeof SoundPlayer !== 'undefined' && SoundPlayer.predecodeAllSounds) {
+                    SoundPlayer.predecodeAllSounds();
+                }
             } else {
                 console.warn(`[SoundLoader] Audio loading partially complete: ${failedFiles} files failed. Version not cached.`);
                 if (statusText) statusText.textContent = `Audio siap sebagian (${failedFiles} gagal)`;

@@ -7,7 +7,7 @@ class TestV255Features(unittest.TestCase):
         room_mgr.rooms.clear()
 
     def test_version_bump(self):
-        self.assertEqual(APP_VERSION, "2.5.5")
+        self.assertEqual(APP_VERSION, "2.5.6")
 
     def test_mid_game_join_scenario(self):
         # Client 1 creates room
